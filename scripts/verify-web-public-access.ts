@@ -182,6 +182,33 @@ assert.match(view, /productActionTargets\(productActions, actionId\)/);
 assert.match(view, /availableProductActionTargets\(targets\)/);
 assert.match(view, /localProductActionTarget\(targets\)/);
 assert.match(view, /productActionTargetRequiresLocalHost\(localTarget\)/);
+assert.match(view, /productActionTargets\(productActions, "connectivity\.route\.intent"\)/);
+assert.match(view, /productActionTargets\(productActions, "connectivity\.route\.cutover"\)/);
+assert.match(view, /isLocalProductActionExecutionPath\(localRouteIntentTarget\)/);
+assert.match(view, /routeIntentExecutionPathAvailable/);
+assert.match(view, /routeCutoverRequiresLocalHost/);
+assert.match(view, /routeControlMutationDisabled = !routeIntentExecutionPathAvailable/);
+assert.equal(
+  (view.match(/routeControlMutationDisabled/g) ?? []).length >= 10,
+  true,
+  "every Route control-plane mutation must remain gated by connectivity.route.intent"
+);
+const routeTargetResolutionStart = view.indexOf("const routeIntentTargets =");
+const routeTargetResolutionEnd = view.indexOf("\n\n  return (", routeTargetResolutionStart);
+assert.equal(routeTargetResolutionStart >= 0 && routeTargetResolutionEnd > routeTargetResolutionStart, true);
+const routeTargetResolution = view.slice(routeTargetResolutionStart, routeTargetResolutionEnd);
+assert.doesNotMatch(
+  routeTargetResolution,
+  /action\.available|provider\.actions/,
+  "Route Product Action target resolution must not be derived from provider-specific action.available"
+);
+assert.match(view, /target\.reason === "target-capability-not-implemented"/);
+assert.match(view, /case "target-capability-not-attested"/);
+assert.match(view, /case "device-agent-update-required"/);
+assert.match(view, /routeCutoverHostRequirementDescription/);
+assert.match(view, /desktopHostActionAttributes\(DESKTOP_HOST_ACTIONS\.connectivity\)/);
+assert.match(view, /chatcockpit:\/\/settings\/connectivity/);
+assert.doesNotMatch(view, /onExecuteCutover|executeCutover|executeBootstrap/);
 assert.doesNotMatch(view, /"available-local"|"available-targeted"|"requires-local-host"/);
 assert.match(view, /target\.reason === "target-capability-not-implemented"/);
 assert.doesNotMatch(view, /providerUseAppCli/);
@@ -342,6 +369,15 @@ assert.match(copy, /workflowLive:\s*"Live"/);
 assert.match(copy, /changePublicAccess:\s*"Change Public Access"/);
 assert.match(copy, /closePublicAccessMaintenance:\s*"Collapse maintenance workflow"/);
 assert.match(copy, /routeIntentTitle:\s*"Candidate Public Route"/);
+assert.match(copy, /routeExecutionTargets:\s*"Route execution targets"/);
+assert.match(copy, /routeIntentControlPlane:\s*"Control-plane Route workflow"/);
+assert.match(copy, /routeCutoverMachine:\s*"Machine Cutover \/ Bootstrap"/);
+assert.match(copy, /routeTargetNotImplemented:/);
+assert.match(copy, /routeTargetNotAttested:/);
+assert.match(copy, /routeTargetAgentUpdate:/);
+assert.match(copy, /this page never creates or calls a cutover\/bootstrap execute Web endpoint/);
+assert.match(copy, /providerMachineActions:\s*"Provider-eligible actions"/);
+assert.match(copy, /providerMachineActions:\s*"Provider 可执行资格"/);
 assert.match(copy, /candidateStagedUnverified:\s*"Staged · unverified"/);
 assert.match(copy, /candidateVerified:\s*"Verified"/);
 assert.match(copy, /verifyCandidateRoute:\s*"Verify candidate"/);
@@ -402,6 +438,14 @@ assert.match(styles, /\.public-access-provider-status\s*\{/);
 assert.match(styles, /\.public-access-provider-primary\s*\{/);
 assert.match(styles, /\.public-access-provider-bridge\s*\{/);
 assert.match(styles, /\.public-access-route-candidate\s*\{/);
+assert.match(styles, /\.public-access-route-targets\s*\{/);
+assert.match(styles, /\.public-access-route-target-groups\s*\{/);
+assert.match(styles, /\.public-access-route-target\s*\{/);
+assert.match(styles, /\.public-access-route-target-bridge\s*\{/);
+assert.match(
+  styles,
+  /@media \(max-width: 960px\)[\s\S]*\.public-access-route-target-groups,[\s\S]*grid-template-columns:\s*1fr/s
+);
 assert.match(styles, /\.public-access-verification-grid\s*\{/);
 assert.match(styles, /\.public-access-verification-check\s*\{/);
 assert.match(styles, /\.public-access-route-form\s*\{/);

@@ -1762,6 +1762,97 @@ button,
   min-width: 0;
 }
 
+.public-access-route-targets {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--tp-line);
+}
+
+.public-access-route-targets__header,
+.public-access-route-target-group__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.public-access-route-targets__header > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.public-access-route-targets__header > div > span {
+  line-height: 1.45;
+}
+
+.public-access-route-target-groups {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.public-access-route-target-group {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--tp-line);
+  border-radius: 12px;
+  background: var(--tp-surface-subtle);
+}
+
+.public-access-route-target-group__header > span {
+  font-size: var(--tp-text-xs);
+}
+
+.public-access-route-target-grid {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.public-access-route-target {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid var(--tp-line);
+  border-radius: 10px;
+  background: var(--tp-surface-soft);
+}
+
+.public-access-route-target__identity {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.public-access-route-target__identity strong,
+.public-access-route-target__identity span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.public-access-route-target-bridge {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--tp-line);
+}
+
+.public-access-route-target-bridge > span {
+  min-width: 0;
+  line-height: 1.45;
+}
+
 .public-access-verification-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2099,6 +2190,7 @@ button,
 
   .public-access-status-grid,
   .public-access-verification-grid,
+  .public-access-route-target-groups,
   .public-access-route-form {
     grid-template-columns: 1fr;
   }

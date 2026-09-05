@@ -72,6 +72,24 @@ export interface PublicAccessCopy {
   connectivityHostRequirementDescription: string;
   routeIntentTitle: string;
   routeIntentDescription: string;
+  routeExecutionTargets: string;
+  routeExecutionTargetsDescription: string;
+  routeIntentControlPlane: string;
+  routeCutoverMachine: string;
+  routeTargetLocal: string;
+  routeTargetRemote: string;
+  routeTargetReady: string;
+  routeTargetRequiresLocalHost: string;
+  routeTargetApprovalRequired: string;
+  routeTargetOffline: string;
+  routeTargetAgentUpdate: string;
+  routeTargetNotAttested: string;
+  routeTargetNotImplemented: string;
+  routeTargetForbidden: string;
+  routeTargetNoPath: string;
+  routeTargetProjectionUnavailable: string;
+  routeTargetProjectionFailed: string;
+  routeCutoverHostRequirementDescription: string;
   currentCanonicalRoute: string;
   candidateRoute: string;
   candidateSource: string;
@@ -191,7 +209,7 @@ const zhCN: PublicAccessCopy = {
   providerManaged: "由 ChatCockpit 管理",
   providerExternalUnmanaged: "外部环境 · 未接管",
   providerObserveOnly: "仅观察 · 尚无机器 Adapter",
-  providerMachineActions: "可用机器操作",
+  providerMachineActions: "Provider 可执行资格",
   providerHomebrewRequired: "需要先在此 Mac 安装 Homebrew；ChatCockpit 不会自动安装 Homebrew",
   providerNoMachineAction: "当前没有可用的 ChatCockpit 机器操作",
   providerStatusUnavailable: "暂时无法读取本机连接组件状态；这不会改变当前 Runtime 公网接入结果。",
@@ -204,6 +222,24 @@ const zhCN: PublicAccessCopy = {
   connectivityHostRequirementDescription: "这些动作需要目标机器上的 machine-local Host Capability。若当前 Mac 提供 Desktop Host，可切换到「此 Mac → 接入组件」继续；否则请使用具备该能力的 Host 或 CLI。这里不会自动执行安装、升级、卸载或启动 Tunnel。",
   routeIntentTitle: "候选公网 Route",
   routeIntentDescription: "暂存候选 HTTPS origin 时不会改写 Runtime 公网基址。已有 canonical 时使用公网 DNS、TLS、Runtime Health 与 OAuth identity 验证 replacement Route；首次公网接入时改用 machine-local challenge 的 Bootstrap Identity Proof。",
+  routeExecutionTargets: "Route 执行目标",
+  routeExecutionTargetsDescription: "Product Action 明确分开控制面 Route Intent 与真正的 Machine Cutover。候选暂存、验证、Bootstrap Proof 与 Cutover Intent 只走控制面执行路径；真正修改机器配置必须另有 Machine Authority。",
+  routeIntentControlPlane: "控制面 Route 工作流",
+  routeCutoverMachine: "Machine Cutover / Bootstrap",
+  routeTargetLocal: "本机",
+  routeTargetRemote: "远程设备",
+  routeTargetReady: "该目标提供当前动作的合法执行路径。",
+  routeTargetRequiresLocalHost: "需要目标机器上的本机 Host Capability。",
+  routeTargetApprovalRequired: "目标支持该动作，但执行前必须经过受治理审批。",
+  routeTargetOffline: "目标设备当前离线。",
+  routeTargetAgentUpdate: "旧版 Device Agent 协议无法表达所需能力，需要升级目标设备上的 Agent。",
+  routeTargetNotAttested: "目标设备当前没有证明该能力；这不等同于离线或必须升级。",
+  routeTargetNotImplemented: "目标设备在线，但当前 Device Agent 尚未实现该 Route 动作的 RPC。",
+  routeTargetForbidden: "当前 Authority / Policy 不允许在该目标执行此动作。",
+  routeTargetNoPath: "当前没有合法执行路径。",
+  routeTargetProjectionUnavailable: "暂时无法确认 Route Product Action 执行目标；控制面变更保持禁用。",
+  routeTargetProjectionFailed: "Route 执行目标读取失败",
+  routeCutoverHostRequirementDescription: "真正的 Public Route Cutover / Bootstrap 仍是 machine-local Authority 动作。若当前 Mac 提供 Desktop Host，可通过现有「此 Mac → 接入组件」typed handoff 继续；这里不会创建或调用任何 cutover/bootstrap execute Web endpoint。",
   currentCanonicalRoute: "当前 canonical",
   candidateRoute: "候选 Route",
   candidateSource: "候选来源",
@@ -349,7 +385,7 @@ const enUS: PublicAccessCopy = {
   providerManaged: "Managed by ChatCockpit",
   providerExternalUnmanaged: "External environment · unmanaged",
   providerObserveOnly: "Observe only · no machine adapter yet",
-  providerMachineActions: "Machine actions available",
+  providerMachineActions: "Provider-eligible actions",
   providerHomebrewRequired: "Homebrew must already be installed on this Mac; ChatCockpit does not install Homebrew automatically",
   providerNoMachineAction: "No ChatCockpit machine action is currently available",
   providerStatusUnavailable: "Machine connector status is temporarily unavailable. The current Runtime public connectivity result is unchanged.",
@@ -362,6 +398,24 @@ const enUS: PublicAccessCopy = {
   connectivityHostRequirementDescription: "These actions require a machine-local Host Capability on the target device. If this Mac provides the Desktop Host, switch to This Mac → Connectivity Providers; otherwise use a Host or CLI that has the capability. This workflow never auto-runs install, upgrade, uninstall, or Tunnel startup.",
   routeIntentTitle: "Candidate Public Route",
   routeIntentDescription: "Staging a candidate HTTPS origin never rewrites the Runtime public base URL. With an existing canonical, replacement verification checks public DNS, TLS, Runtime Health, and OAuth identity; first-public setup instead uses a machine-local challenge Bootstrap Identity Proof.",
+  routeExecutionTargets: "Route execution targets",
+  routeExecutionTargetsDescription: "Product Action keeps control-plane Route Intent separate from real Machine Cutover. Candidate staging, verification, Bootstrap Proof, and Cutover Intent use only the control-plane path; machine configuration changes require separate Machine Authority.",
+  routeIntentControlPlane: "Control-plane Route workflow",
+  routeCutoverMachine: "Machine Cutover / Bootstrap",
+  routeTargetLocal: "This device",
+  routeTargetRemote: "Remote device",
+  routeTargetReady: "This target provides a legitimate execution path for the action.",
+  routeTargetRequiresLocalHost: "A machine-local Host Capability is required on the target device.",
+  routeTargetApprovalRequired: "The target supports this action, but governed approval is required before execution.",
+  routeTargetOffline: "The target device is currently offline.",
+  routeTargetAgentUpdate: "The legacy Device Agent protocol cannot express the required capability; update the Agent on the target device.",
+  routeTargetNotAttested: "The target device has not attested this capability. This does not imply that it is offline or must be upgraded.",
+  routeTargetNotImplemented: "The target device is online, but the current Device Agent does not implement this Route RPC.",
+  routeTargetForbidden: "Current Authority / Policy does not permit this action on the target.",
+  routeTargetNoPath: "No legitimate execution path is currently available.",
+  routeTargetProjectionUnavailable: "ChatCockpit cannot currently confirm Route Product Action targets, so control-plane mutation remains disabled.",
+  routeTargetProjectionFailed: "Route execution target projection failed",
+  routeCutoverHostRequirementDescription: "Actual Public Route Cutover / Bootstrap remains a machine-local Authority action. If this Mac provides the Desktop Host, continue through the existing This Mac → Connectivity Providers typed handoff; this page never creates or calls a cutover/bootstrap execute Web endpoint.",
   currentCanonicalRoute: "Current canonical",
   candidateRoute: "Candidate Route",
   candidateSource: "Candidate source",

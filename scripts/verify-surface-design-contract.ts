@@ -24,6 +24,7 @@ const actionAvailabilityRoutes = read("src/server/product-action-availability-ro
 const projectCenter = read("web/src/components/projects/ProjectCenterView.tsx");
 const projectCockpit = read("web/src/components/projects/ProjectCockpitView.tsx");
 const resourceCenter = read("web/src/components/resources/ResourceCenterView.tsx");
+const publicAccess = read("web/src/components/PublicAccessView.tsx");
 const productActionAvailability = read("web/src/product-action-availability.ts");
 const webDesignSystem = read("docs/architecture/web-ui-design-system.md");
 const macosDeployment = read("docs/deployment/macos-desktop.md");
@@ -193,6 +194,8 @@ assert.match(actionAvailabilityService, /"project\.root\.manage"/);
 assert.match(actionAvailabilityService, /"project\.discovery"/);
 assert.match(actionAvailabilityService, /"runtime\.lifecycle"/);
 assert.match(actionAvailabilityService, /"runtime\.resource\.mutate"/);
+assert.match(actionAvailabilityService, /"connectivity\.route\.intent"/);
+assert.match(actionAvailabilityService, /"connectivity\.route\.cutover"/);
 assert.match(actionAvailabilityService, /"available-targeted"/);
 assert.match(actionAvailabilityService, /"requires-local-host"/);
 assert.match(actionAvailabilityService, /"approval-required"/);
@@ -226,6 +229,19 @@ assert.match(resourceCenter, /target-capability-not-attested/);
 assert.match(resourceCenter, /device-agent-update-required/);
 assert.match(resourceCenter, /onRefreshProductActions\(\)/);
 assert.match(webApp, /<ResourceCenterView[\s\S]*productActions=\{productActions\}[\s\S]*productActionsError=\{productActionsError\}[\s\S]*onRefreshProductActions=\{loadProductActions\}/);
+
+assert.match(publicAccess, /productActionTargets\(productActions, "connectivity\.route\.intent"\)/);
+assert.match(publicAccess, /productActionTargets\(productActions, "connectivity\.route\.cutover"\)/);
+assert.match(publicAccess, /isLocalProductActionExecutionPath\(localRouteIntentTarget\)/);
+assert.match(publicAccess, /routeIntentExecutionPathAvailable/);
+assert.match(publicAccess, /routeControlMutationDisabled/);
+assert.match(publicAccess, /routeCutoverRequiresLocalHost/);
+assert.match(publicAccess, /target-capability-not-implemented/);
+assert.match(publicAccess, /target-capability-not-attested/);
+assert.match(publicAccess, /device-agent-update-required/);
+assert.match(publicAccess, /desktopHostActionAttributes\(DESKTOP_HOST_ACTIONS\.connectivity\)/);
+assert.match(publicAccess, /chatcockpit:\/\/settings\/connectivity/);
+assert.match(publicAccess, /routeCutoverHostRequirementDescription/);
 
 assert.match(statusView, /enum MainAppSection: String, CaseIterable, Identifiable/);
 for (const section of ["overview", "projects", "work", "runtime", "resources", "devices", "connections", "thisMac"]) {

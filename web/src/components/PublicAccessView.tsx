@@ -7,6 +7,7 @@ import { getPublicAccessCopy } from "../i18n/public-access";
 import type { OperationalStatusTone } from "../status-language";
 import {
   availableProductActionTargets,
+  isLocalProductActionExecutionPath,
   localProductActionTarget,
   productActionTargetRequiresLocalHost,
   productActionTargets
@@ -22,6 +23,7 @@ import type {
   ConnectivityProviderPublicStatus,
   IntegrationStatusResponse,
   ProductActionId,
+  ProductActionTargetAvailability,
   ProductActionsResponse,
   PublicRouteBootstrapProofSnapshot,
   PublicRouteBootstrapVerificationReason,
@@ -181,6 +183,82 @@ function bootstrapVerificationReasonLabel(
   copy: ReturnType<typeof getPublicAccessCopy>
 ): string {
   return reason ? copy.bootstrapVerificationReasons[reason] : copy.ready;
+}
+
+function routeTargetTone(
+  target: ProductActionTargetAvailability
+): OperationalStatusTone {
+  if (target.reason === "ready") return "success";
+  if (
+    target.reason === "machine-local-context-required" ||
+    target.reason === "approval-required"
+  ) {
+    return "warning";
+  }
+  if (target.reason === "device-offline" || target.reason === "policy-forbidden") {
+    return "error";
+  }
+  return "default";
+}
+
+function routeTargetReasonLabel(
+  target: ProductActionTargetAvailability,
+  copy: ReturnType<typeof getPublicAccessCopy>
+): string {
+  switch (target.reason) {
+  case "ready":
+    return copy.routeTargetReady;
+  case "machine-local-context-required":
+    return copy.routeTargetRequiresLocalHost;
+  case "approval-required":
+    return copy.routeTargetApprovalRequired;
+  case "device-offline":
+    return copy.routeTargetOffline;
+  case "device-agent-update-required":
+    return copy.routeTargetAgentUpdate;
+  case "target-capability-not-attested":
+    return copy.routeTargetNotAttested;
+  case "target-capability-not-implemented":
+    return copy.routeTargetNotImplemented;
+  case "policy-forbidden":
+    return copy.routeTargetForbidden;
+  case "no-valid-execution-path":
+    return copy.routeTargetNoPath;
+  }
+}
+
+function RouteActionTargetList({
+  targets,
+  copy
+}: {
+  targets: readonly ProductActionTargetAvailability[];
+  copy: ReturnType<typeof getPublicAccessCopy>;
+}) {
+  if (targets.length === 0) {
+    return <Text type="secondary">{copy.routeTargetProjectionUnavailable}</Text>;
+  }
+
+  return (
+    <div className="public-access-route-target-grid">
+      {targets.map((target) => (
+        <div className="public-access-route-target" key={target.deviceId}>
+          <div className="public-access-route-target__identity">
+            <strong>{target.displayName}</strong>
+            <Text type="secondary">
+              {target.locality === "local"
+                ? copy.routeTargetLocal
+                : copy.routeTargetRemote}
+              {" · "}
+              {target.platform}/{target.architecture}
+            </Text>
+          </div>
+          <Tag color={routeTargetTone(target)}>
+            {routeTargetReasonLabel(target, copy)}
+          </Tag>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function providerCapabilitySummary(
@@ -375,6 +453,28 @@ export function PublicAccessView({
     (provider) => provider.detection === "detected"
   ).length ?? 0;
   const providerNeedsLocalHost = requiresLocalConnectivityHost(providerStatus, productActions);
+  const routeIntentTargets = productActionTargets(productActions, "connectivity.route.intent");
+  const localRouteIntentTarget = localProductActionTarget(routeIntentTargets);
+  const routeIntentExecutionPathAvailable = !productActionsError &&
+    Boolean(
+      localRouteIntentTarget &&
+      isLocalProductActionExecutionPath(localRouteIntentTarget)
+    );
+  const routeIntentGateMessage = productActionsError
+    ? `${copy.routeTargetProjectionFailed}: ${productActionsError}`
+    : routeIntentTargets.length === 0
+      ? copy.routeTargetProjectionUnavailable
+      : !routeIntentExecutionPathAvailable
+        ? (
+            localRouteIntentTarget
+              ? routeTargetReasonLabel(localRouteIntentTarget, copy)
+              : copy.routeTargetProjectionUnavailable
+          )
+        : null;
+  const routeCutoverTargets = productActionTargets(productActions, "connectivity.route.cutover");
+  const localRouteCutoverTarget = localProductActionTarget(routeCutoverTargets);
+  const routeCutoverRequiresLocalHost = productActionTargetRequiresLocalHost(localRouteCutoverTarget);
+  const routeControlMutationDisabled = !routeIntentExecutionPathAvailable;
 
   return (
     <div className="view-stack">
@@ -646,6 +746,75 @@ export function PublicAccessView({
               ) : null}
             </div>
 
+            <div className="public-access-route-targets">
+              <div className="public-access-route-targets__header">
+                <div>
+                  <strong>{copy.routeExecutionTargets}</strong>
+                  <Text type="secondary">{copy.routeExecutionTargetsDescription}</Text>
+                </div>
+                <Tag
+                  color={
+                    localRouteIntentTarget
+                      ? routeTargetTone(localRouteIntentTarget)
+                      : "default"
+                  }
+                >
+                  {localRouteIntentTarget
+                    ? routeTargetReasonLabel(localRouteIntentTarget, copy)
+                    : copy.routeTargetProjectionUnavailable}
+                </Tag>
+              </div>
+
+              {routeIntentGateMessage ? (
+                <div className="section-note section-note--warning public-access-note">
+                  <strong>{copy.routeIntentControlPlane}</strong>
+                  <span>{routeIntentGateMessage}</span>
+                </div>
+              ) : null}
+
+              <div className="public-access-route-target-groups">
+                <div className="public-access-route-target-group">
+                  <div className="public-access-route-target-group__header">
+                    <strong>{copy.routeIntentControlPlane}</strong>
+                    <Text type="secondary">connectivity.route.intent</Text>
+                  </div>
+                  <RouteActionTargetList
+                    targets={routeIntentTargets}
+                    copy={copy}
+                  />
+                </div>
+                <div className="public-access-route-target-group">
+                  <div className="public-access-route-target-group__header">
+                    <strong>{copy.routeCutoverMachine}</strong>
+                    <Text type="secondary">connectivity.route.cutover</Text>
+                  </div>
+                  <RouteActionTargetList
+                    targets={routeCutoverTargets}
+                    copy={copy}
+                  />
+                  {routeCutoverRequiresLocalHost ? (
+                    <div className="public-access-route-target-bridge">
+                      {(desktopHostCapabilityAvailable || desktopAppFallbackAvailable) ? (
+                        <Button
+                          href={
+                            desktopHostCapabilityAvailable
+                              ? undefined
+                              : "chatcockpit://settings/connectivity"
+                          }
+                          {...desktopHostActionAttributes(DESKTOP_HOST_ACTIONS.connectivity)}
+                        >
+                          {copy.continueOnThisMac}
+                        </Button>
+                      ) : null}
+                      <Text type="secondary">
+                        {copy.routeCutoverHostRequirementDescription}
+                      </Text>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+
             {!bootstrapMode && verification && showVerificationDetails ? (
               <div className="public-access-verification-grid">
                 {verificationChecks.map((item) => (
@@ -724,7 +893,7 @@ export function PublicAccessView({
                     <Button
                       type="primary"
                       loading={bootstrapProofMutating}
-                      disabled={routeMutating || bootstrapProofMutating}
+                      disabled={routeControlMutationDisabled || routeMutating || bootstrapProofMutating}
                       onClick={() => onPrepareBootstrapProof(routeStatus.candidate!.id)}
                     >
                       {copy.prepareBootstrapProof}
@@ -733,7 +902,7 @@ export function PublicAccessView({
                     <Button
                       type="primary"
                       loading={bootstrapProofMutating}
-                      disabled={routeMutating || bootstrapProofMutating}
+                      disabled={routeControlMutationDisabled || routeMutating || bootstrapProofMutating}
                       onClick={() => onVerifyBootstrapProof(routeStatus.candidate!.id, bootstrapProof.id)}
                     >
                       {copy.verifyBootstrapProof}
@@ -741,7 +910,7 @@ export function PublicAccessView({
                   ) : null}
                   {bootstrapProof ? (
                     <Button
-                      disabled={bootstrapProofMutating}
+                      disabled={routeControlMutationDisabled || bootstrapProofMutating}
                       onClick={onCancelBootstrapProof}
                     >
                       {copy.cancelBootstrapProof}
@@ -782,7 +951,11 @@ export function PublicAccessView({
                   </div>
                 </div>
                 <div className="public-access-route-actions">
-                  <Button loading={cutoverIntentMutating} onClick={onCancelCutoverIntent}>
+                  <Button
+                    loading={cutoverIntentMutating}
+                    disabled={routeControlMutationDisabled || cutoverIntentMutating}
+                    onClick={onCancelCutoverIntent}
+                  >
                     {copy.cancelCutoverIntent}
                   </Button>
                 </div>
@@ -797,13 +970,13 @@ export function PublicAccessView({
                   <Button
                     type="primary"
                     loading={cutoverIntentMutating}
-                    disabled={routeMutating || routeVerifying || cutoverIntentMutating}
+                    disabled={routeControlMutationDisabled || routeMutating || routeVerifying || cutoverIntentMutating}
                     onClick={() => onPrepareCutoverIntent(routeStatus.candidate!.id, verification.id)}
                   >
                     {copy.prepareCutoverIntent}
                   </Button>
                   <Button
-                    disabled={routeMutating || routeVerifying || cutoverIntentMutating}
+                    disabled={routeControlMutationDisabled || routeMutating || routeVerifying || cutoverIntentMutating}
                     onClick={onDiscardCandidate}
                   >
                     {copy.discardCandidateRoute}
@@ -836,7 +1009,7 @@ export function PublicAccessView({
                   <Button
                     type="primary"
                     loading={routeMutating}
-                    disabled={!candidateOrigin.trim() || routeMutating || routeVerifying || routeWorkflowLocked}
+                    disabled={!candidateOrigin.trim() || routeControlMutationDisabled || routeMutating || routeVerifying || routeWorkflowLocked}
                     onClick={() => onStageCandidate(candidateOrigin.trim(), candidateSource)}
                   >
                     {routeStatus.candidate ? copy.replaceCandidateRoute : copy.stageCandidateRoute}
@@ -844,7 +1017,7 @@ export function PublicAccessView({
                   {routeStatus.candidate && !bootstrapMode ? (
                     <Button
                       loading={routeVerifying}
-                      disabled={routeMutating || routeVerifying || routeWorkflowLocked}
+                      disabled={routeControlMutationDisabled || routeMutating || routeVerifying || routeWorkflowLocked}
                       onClick={() => onVerifyCandidate(routeStatus.candidate!.id)}
                     >
                       {copy.verifyCandidateRoute}
@@ -852,7 +1025,7 @@ export function PublicAccessView({
                   ) : null}
                   {routeStatus.candidate ? (
                     <Button
-                      disabled={routeMutating || routeVerifying || routeWorkflowLocked}
+                      disabled={routeControlMutationDisabled || routeMutating || routeVerifying || routeWorkflowLocked}
                       onClick={onDiscardCandidate}
                     >
                       {copy.discardCandidateRoute}
