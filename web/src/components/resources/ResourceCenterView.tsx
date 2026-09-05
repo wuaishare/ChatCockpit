@@ -29,6 +29,11 @@ import {
   fetchRuntimeResourceProfiles,
   inventoryRuntimeResources
 } from "../../api";
+import {
+  isLocalProductActionExecutionPath,
+  localProductActionTarget,
+  productActionTargets
+} from "../../product-action-availability";
 import { getResourceCenterCopy } from "../../i18n/resources";
 import type { LocaleCode } from "../../i18n";
 import { getOperationalStatusLabel, getOperationalStatusTone, type OperationalStatusTone } from "../../status-language";
@@ -36,6 +41,8 @@ import type {
   ApiProblem,
   CapabilityProviderManagementDescriptor,
   ContinuityProjectProjection,
+  ProductActionTargetAvailability,
+  ProductActionsResponse,
   RuntimeProfileDescriptor,
   RuntimeResourceAuthStatus,
   RuntimeResourceCompatibilityStatus,
@@ -62,6 +69,9 @@ interface ResourceCenterViewProps {
   locale: LocaleCode;
   token: string | null;
   authRequired: boolean;
+  productActions: ProductActionsResponse | null;
+  productActionsError: string | null;
+  onRefreshProductActions: () => Promise<void>;
 }
 
 type ResourceTab = "all" | RuntimeResourceKind;
@@ -130,10 +140,67 @@ function managementTone(value: string): OperationalStatusTone {
   return "default";
 }
 
+function mutationTargetTone(
+  target: ProductActionTargetAvailability
+): OperationalStatusTone {
+  if (target.availability === "available-local" || target.availability === "available-targeted") {
+    return "success";
+  }
+  if (target.availability === "approval-required" || target.availability === "requires-local-host") {
+    return "warning";
+  }
+  if (target.availability === "offline" || target.availability === "forbidden") {
+    return "error";
+  }
+  return "default";
+}
+
+function mutationTargetAvailabilityLabel(
+  target: ProductActionTargetAvailability,
+  copy: ReturnType<typeof getResourceCenterCopy>
+): string {
+  if (target.availability === "available-local" || target.availability === "available-targeted") {
+    return copy.ready;
+  }
+  if (target.availability === "approval-required") return copy.required;
+  if (target.availability === "unsupported") return copy.unsupported;
+  if (target.availability === "forbidden") return copy.blocked;
+  return copy.unavailable;
+}
+
+function mutationTargetReasonLabel(
+  target: ProductActionTargetAvailability,
+  copy: ReturnType<typeof getResourceCenterCopy>
+): string {
+  switch (target.reason) {
+  case "ready":
+    return copy.mutationTargetReady;
+  case "machine-local-context-required":
+    return copy.mutationTargetRequiresLocalHost;
+  case "approval-required":
+    return copy.mutationTargetApprovalRequired;
+  case "device-offline":
+    return copy.mutationTargetOffline;
+  case "device-agent-update-required":
+    return copy.mutationTargetAgentUpdate;
+  case "target-capability-not-attested":
+    return copy.mutationTargetNotAttested;
+  case "target-capability-not-implemented":
+    return copy.mutationTargetNotImplemented;
+  case "policy-forbidden":
+    return copy.mutationTargetForbidden;
+  case "no-valid-execution-path":
+    return copy.mutationTargetNoPath;
+  }
+}
+
 export function ResourceCenterView({
   locale,
   token,
-  authRequired
+  authRequired,
+  productActions,
+  productActionsError,
+  onRefreshProductActions
 }: ResourceCenterViewProps) {
   const copy = getResourceCenterCopy(locale);
   const [profiles, setProfiles] = useState<RuntimeProfileDescriptor[]>([]);
@@ -149,6 +216,30 @@ export function ResourceCenterView({
   const [inspection, setInspection] = useState<RuntimeResourceInspectResponse | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const resourceMutationTargets = useMemo(
+    () => productActionTargets(productActions, "runtime.resource.mutate"),
+    [productActions]
+  );
+  const localResourceMutationTarget = useMemo(
+    () => localProductActionTarget(resourceMutationTargets),
+    [resourceMutationTargets]
+  );
+  const mutationExecutionPathAvailable = !productActionsError &&
+    Boolean(
+      localResourceMutationTarget &&
+      isLocalProductActionExecutionPath(localResourceMutationTarget)
+    );
+  const mutationTargetGateMessage = productActionsError
+    ? `${copy.mutationTargetProjectionFailed}: ${productActionsError}`
+    : resourceMutationTargets.length === 0
+      ? copy.mutationTargetProjectionUnavailable
+      : !mutationExecutionPathAvailable
+        ? (
+            localResourceMutationTarget
+              ? mutationTargetReasonLabel(localResourceMutationTarget, copy)
+              : copy.mutationTargetProjectionUnavailable
+          )
+        : null;
   const {
     mutationApproval,
     mutationExecution,
@@ -171,6 +262,7 @@ export function ResourceCenterView({
     inventory,
     selectedProfileId,
     selectedWorkspaceId,
+    mutationExecutionPathAvailable,
     setInventory
   });
 
@@ -261,11 +353,14 @@ export function ResourceCenterView({
     setDrawerOpen(false);
     setInspection(null);
     try {
-      const result = await readInventory(
-        selectedProfileId,
-        selectedWorkspaceId,
-        needsWorkspace
-      );
+      const [result] = await Promise.all([
+        readInventory(
+          selectedProfileId,
+          selectedWorkspaceId,
+          needsWorkspace
+        ),
+        onRefreshProductActions()
+      ]);
       setInventory(result);
       setActiveTab("all");
       if (needsWorkspace && selectedWorkspaceId) {
@@ -763,6 +858,76 @@ export function ResourceCenterView({
             ) : null}
           </section>
 
+          <section
+            className="resource-center__mutation-targets panel"
+            aria-label={copy.mutationExecutionTargets}
+          >
+            <div className="resource-center__section-header">
+              <div>
+                <Text as="h2" className="resource-center__section-title">
+                  {copy.mutationExecutionTargets}
+                </Text>
+                <Text as="p" className="resource-center__section-description">
+                  {copy.mutationExecutionTargetsDescription}
+                </Text>
+              </div>
+              <Tag
+                color={
+                  localResourceMutationTarget
+                    ? mutationTargetTone(localResourceMutationTarget)
+                    : "default"
+                }
+              >
+                {localResourceMutationTarget
+                  ? mutationTargetAvailabilityLabel(localResourceMutationTarget, copy)
+                  : copy.unavailable}
+              </Tag>
+            </div>
+
+            {resourceMutationTargets.length > 0 ? (
+              <div className="resource-center__mutation-target-grid">
+                {resourceMutationTargets.map((target) => (
+                  <div
+                    key={target.deviceId}
+                    className="resource-center__mutation-target"
+                  >
+                    <div className="resource-center__mutation-target-identity">
+                      <Text as="strong">{target.displayName}</Text>
+                      <Text as="span" type="secondary">
+                        {target.locality === "local"
+                          ? copy.mutationTargetLocal
+                          : copy.mutationTargetRemote}
+                        {" · "}
+                        {target.platform}/{target.architecture}
+                      </Text>
+                    </div>
+                    <Tag color={mutationTargetTone(target)}>
+                      {mutationTargetAvailabilityLabel(target, copy)}
+                    </Tag>
+                    <Text as="span" type="secondary">
+                      {mutationTargetReasonLabel(target, copy)}
+                    </Text>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <Alert
+                type="warning"
+                showIcon
+                message={mutationTargetGateMessage ?? copy.mutationTargetProjectionUnavailable}
+              />
+            )}
+
+            {mutationTargetGateMessage && resourceMutationTargets.length > 0 ? (
+              <Alert
+                className="resource-center__mutation-target-warning"
+                type="warning"
+                showIcon
+                message={mutationTargetGateMessage}
+              />
+            ) : null}
+          </section>
+
           {!inventory.mutationWritesEnabled && inventory.mutationEligibility.length > 0 ? (
             <Alert
               className="resource-center__mutation-gate"
@@ -816,7 +981,10 @@ export function ResourceCenterView({
                   <tbody>
                     {visibleResources.map((resource) => {
                       const mutation = eligibleMutationsForResource(inventory, resource.id)[0];
-                      const mutationDisabled = !inventory.mutationWritesEnabled || mutationBusy;
+                      const mutationDisabled =
+                        !mutationExecutionPathAvailable ||
+                        !inventory.mutationWritesEnabled ||
+                        mutationBusy;
                       return (
                         <tr key={resource.id}>
                           <td>
@@ -840,9 +1008,14 @@ export function ResourceCenterView({
                             {mutation ? (
                               <Tooltip
                                 title={
-                                  inventory.mutationWritesEnabled
-                                    ? mutation.publicReason
-                                    : copy.mutationExposureDisabled
+                                  !mutationExecutionPathAvailable
+                                    ? (
+                                        mutationTargetGateMessage ??
+                                        copy.mutationTargetExecutionUnavailable
+                                      )
+                                    : inventory.mutationWritesEnabled
+                                      ? mutation.publicReason
+                                      : copy.mutationExposureDisabled
                                 }
                               >
                                 <span>
