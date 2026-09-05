@@ -31,6 +31,7 @@ interface PublicAccessViewProps {
   providerStatusError: string | null;
   productActions: ProductActionsResponse | null;
   productActionsError: string | null;
+  desktopHostHandoffAvailable: boolean;
   routeStatus: PublicRouteCandidateSnapshot | null;
   routeStatusError: string | null;
   routeMutating: boolean;
@@ -198,6 +199,7 @@ export function PublicAccessView({
   providerStatusError,
   productActions,
   productActionsError,
+  desktopHostHandoffAvailable,
   routeStatus,
   routeStatusError,
   routeMutating,
@@ -895,15 +897,15 @@ export function PublicAccessView({
       >
         {providerNeedsLocalHost || productActionsError ? (
           <div className="public-access-provider-bridge">
-            {providerNeedsLocalHost ? (
+            {providerNeedsLocalHost && desktopHostHandoffAvailable ? (
               <Button href="chatcockpit://settings/connectivity">
-                {copy.openConnectivityInApp}
+                {copy.continueOnThisMac}
               </Button>
             ) : null}
             <Text type="secondary">
               {productActionsError
                 ? copy.providerTargetAvailabilityUnknown
-                : copy.connectivityBridgeDescription}
+                : copy.connectivityHostRequirementDescription}
             </Text>
           </div>
         ) : null}

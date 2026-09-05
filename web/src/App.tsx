@@ -1538,6 +1538,7 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
                 providerStatusError={connectivityProviderStatusError}
                 productActions={productActions}
                 productActionsError={productActionsError}
+                desktopHostHandoffAvailable={operatorDesktopSetupAvailable}
                 routeStatus={publicRouteCandidateStatus}
                 routeStatusError={publicRouteCandidateError}
                 routeMutating={publicRouteCandidateMutating}

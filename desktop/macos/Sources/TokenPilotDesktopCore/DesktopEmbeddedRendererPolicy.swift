@@ -35,10 +35,28 @@ public struct DesktopEmbeddedNavigationPolicy: Sendable {
             return .reject
         }
         if userInitiated,
+           Self.isAllowedDesktopHandoff(url) {
+            return .openExternally
+        }
+        if userInitiated,
            candidateScheme == "http" || candidateScheme == "https" {
             return .openExternally
         }
         return .reject
+    }
+
+    private static func isAllowedDesktopHandoff(_ url: URL) -> Bool {
+        guard url.scheme?.lowercased() == "chatcockpit",
+              url.user == nil,
+              url.password == nil,
+              url.port == nil,
+              url.query == nil,
+              url.fragment == nil,
+              let host = url.host?.lowercased() else {
+            return false
+        }
+        return (host == "operator" && url.path == "/setup")
+            || (host == "settings" && url.path == "/connectivity")
     }
 
     private static func isLoopbackHost(_ host: String) -> Bool {

@@ -34,4 +34,29 @@ struct DesktopEmbeddedRendererPolicyTests {
         #expect(policy.decision(for: URL(string: "javascript:alert(1)")!, userInitiated: true) == .reject)
         #expect(policy.decision(for: URL(string: "data:text/plain,hello")!, userInitiated: true) == .reject)
     }
+
+    @Test("only exact user-initiated Desktop Host handoffs leave the renderer")
+    func desktopHostHandoffs() {
+        let policy = DesktopEmbeddedNavigationPolicy(baseURL: URL(string: "http://127.0.0.1:4318/ui/")!)!
+        for value in [
+            "chatcockpit://operator/setup",
+            "chatcockpit://settings/connectivity"
+        ] {
+            let url = URL(string: value)!
+            #expect(policy.decision(for: url, userInitiated: true) == .openExternally)
+            #expect(policy.decision(for: url, userInitiated: false) == .reject)
+        }
+
+        for value in [
+            "chatcockpit://settings/connectivity?provider=cloudflare",
+            "chatcockpit://settings/connectivity#install",
+            "chatcockpit://settings/runtime",
+            "chatcockpit://operator/setup?password=secret",
+            "chatcockpit://unknown/path"
+        ] {
+            #expect(
+                policy.decision(for: URL(string: value)!, userInitiated: true) == .reject
+            )
+        }
+    }
 }
