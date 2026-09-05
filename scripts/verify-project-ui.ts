@@ -74,7 +74,12 @@ assert.match(center, /setProjects\(initialResponse\.projects\)/);
 assert.match(center, /setConfigRevision\(initialResponse\.configRevision\)/);
 assert.match(
   center,
-  /void \(async \(\) => \{[\s\S]*const reconciled = await reconcileNativeProjects\(\)/
+  /void \(async \(\) => \{[\s\S]*await reconcileNativeProjects\(\)[\s\S]*const refreshed = await fetchProjects\(\)/
+);
+assert.doesNotMatch(center, /reconciled\.created\.length === 0/);
+assert.match(
+  center,
+  /group\.registration === "partially-registered"[\s\S]*candidate\.registration === "unregistered"[\s\S]*onAttachCandidate\(candidate\)/
 );
 assert.match(cockpit, /fetchProductActions/);
 assert.match(cockpit, /rootManagementAvailable/);
