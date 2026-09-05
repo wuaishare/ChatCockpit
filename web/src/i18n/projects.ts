@@ -1,4 +1,5 @@
 import type {
+  ProductActionTargetAvailability,
   ProjectRootAccess,
   ProjectRootKind,
   ProjectRootRole
@@ -39,6 +40,24 @@ const zhCN = {
   noRemoteTargets: "当前没有已连接的远程设备",
   actionAvailabilityUnknown: "暂时无法确认当前 Host 的执行能力",
   actionUnavailable: "当前执行环境不支持此操作",
+  executionTargets: "执行目标",
+  targetLocal: "本机",
+  targetRemote: "远程设备",
+  chooseFolder: "选择文件夹",
+  availabilityAvailable: "可执行",
+  availabilityRequiresLocalHost: "需要目标机器本机 Host",
+  availabilityOffline: "设备离线",
+  availabilityUnsupported: "未支持",
+  availabilityApproval: "需要审批",
+  availabilityForbidden: "策略禁止",
+  availabilityUnavailable: "无可用执行路径",
+  reasonAgentUpdate: "旧版 Device Agent 协议无法表达所需能力，需要升级目标设备上的 Agent。",
+  reasonNotAttested: "目标设备当前没有证明 Project Root 变更能力；这不等同于设备离线或必须升级。",
+  reasonNotImplemented: "目标设备在线，但当前 Device Agent 尚未实现 Project Root 变更 RPC。",
+  reasonForbidden: "当前策略不允许在该目标执行此操作。",
+  reasonApproval: "该目标支持此操作，但执行前需要受治理审批。",
+  reasonNoPath: "当前没有合法执行路径。",
+  reasonOffline: "目标设备当前离线。",
   next: "下一步",
   back: "上一步",
   displayName: "项目名称",
@@ -205,6 +224,24 @@ const enUS = {
   noRemoteTargets: "No connected remote devices are currently available",
   actionAvailabilityUnknown: "ChatCockpit cannot currently confirm this Host's execution capability",
   actionUnavailable: "This action is not supported by the current execution environment",
+  executionTargets: "Execution targets",
+  targetLocal: "This device",
+  targetRemote: "Remote device",
+  chooseFolder: "Choose folder",
+  availabilityAvailable: "Available",
+  availabilityRequiresLocalHost: "Requires local Host",
+  availabilityOffline: "Device offline",
+  availabilityUnsupported: "Unsupported",
+  availabilityApproval: "Approval required",
+  availabilityForbidden: "Forbidden by policy",
+  availabilityUnavailable: "No execution path",
+  reasonAgentUpdate: "The legacy Device Agent protocol cannot express the required capability; update the Agent on the target device.",
+  reasonNotAttested: "The target device has not attested Project Root mutation capability. This does not imply that it is offline or must be upgraded.",
+  reasonNotImplemented: "The target device is online, but the current Device Agent does not implement Project Root mutation RPC.",
+  reasonForbidden: "Current policy does not allow this action on the target.",
+  reasonApproval: "The target supports this action, but governed approval is required before execution.",
+  reasonNoPath: "No valid execution path is currently available.",
+  reasonOffline: "The target device is currently offline.",
   next: "Next",
   back: "Back",
   displayName: "Project name",
@@ -369,4 +406,55 @@ export function projectRootAccessLabel(
 ): string {
   const copy = getProjectsCopy(locale);
   return access === "read-write" ? copy.readWrite : copy.readOnly;
+}
+
+export function projectActionTargetAvailabilityLabel(
+  locale: "zh-CN" | "en-US",
+  target: ProductActionTargetAvailability
+): string {
+  const copy = getProjectsCopy(locale);
+  switch (target.availability) {
+  case "available-local":
+  case "available-targeted":
+    return copy.availabilityAvailable;
+  case "requires-local-host":
+    return copy.availabilityRequiresLocalHost;
+  case "approval-required":
+    return copy.availabilityApproval;
+  case "offline":
+    return copy.availabilityOffline;
+  case "unsupported":
+    return copy.availabilityUnsupported;
+  case "forbidden":
+    return copy.availabilityForbidden;
+  case "unavailable":
+    return copy.availabilityUnavailable;
+  }
+}
+
+export function projectActionTargetReasonLabel(
+  locale: "zh-CN" | "en-US",
+  target: ProductActionTargetAvailability
+): string {
+  const copy = getProjectsCopy(locale);
+  switch (target.reason) {
+  case "ready":
+    return target.locality === "local" ? copy.localProjectDescription : copy.remoteProjectDescription;
+  case "machine-local-context-required":
+    return copy.localHostRequired;
+  case "approval-required":
+    return copy.reasonApproval;
+  case "device-offline":
+    return copy.reasonOffline;
+  case "device-agent-update-required":
+    return copy.reasonAgentUpdate;
+  case "target-capability-not-attested":
+    return copy.reasonNotAttested;
+  case "target-capability-not-implemented":
+    return copy.reasonNotImplemented;
+  case "policy-forbidden":
+    return copy.reasonForbidden;
+  case "no-valid-execution-path":
+    return copy.reasonNoPath;
+  }
 }

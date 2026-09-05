@@ -60,9 +60,24 @@ public struct DesktopEmbeddedNavigationPolicy: Sendable {
     }
 }
 
+public enum DesktopHostCapability: String, CaseIterable, Codable, Equatable, Hashable, Sendable {
+    case operatorSetup = "operator.setup"
+    case connectivity = "settings.connectivity"
+    case projectRootPick = "project.root.pick"
+}
+
 public enum DesktopHostAction: String, CaseIterable, Codable, Equatable, Hashable, Sendable {
     case operatorSetup = "operator.setup"
     case connectivity = "settings.connectivity"
+
+    public var capability: DesktopHostCapability {
+        switch self {
+        case .operatorSetup:
+            return .operatorSetup
+        case .connectivity:
+            return .connectivity
+        }
+    }
 
     public init?(deepLinkURL url: URL) {
         guard url.scheme?.lowercased() == "chatcockpit",
@@ -97,11 +112,11 @@ public enum DesktopHostAction: String, CaseIterable, Codable, Equatable, Hashabl
 
 public struct DesktopHostCapabilityProjection: Codable, Equatable, Sendable {
     public let schemaVersion: Int
-    public let capabilities: [DesktopHostAction]
+    public let capabilities: [DesktopHostCapability]
 
     public init(
         schemaVersion: Int = 1,
-        capabilities: [DesktopHostAction] = DesktopHostAction.allCases
+        capabilities: [DesktopHostCapability] = DesktopHostCapability.allCases
     ) {
         self.schemaVersion = schemaVersion
         self.capabilities = capabilities
@@ -133,6 +148,61 @@ public struct DesktopHostBridgeRequest: Equatable, Sendable {
             schemaVersion: schemaNumber.intValue,
             action: action
         )
+    }
+}
+
+public struct DesktopHostPickerRequest: Equatable, Sendable {
+    public let schemaVersion: Int
+    public let capability: DesktopHostCapability
+
+    public init(
+        schemaVersion: Int = 1,
+        capability: DesktopHostCapability = .projectRootPick
+    ) {
+        self.schemaVersion = schemaVersion
+        self.capability = capability
+    }
+
+    public static func parse(messageBody: Any) -> DesktopHostPickerRequest? {
+        guard let body = messageBody as? [String: Any],
+              Set(body.keys) == Set(["schemaVersion", "capability"]),
+              let schemaNumber = body["schemaVersion"] as? NSNumber,
+              CFGetTypeID(schemaNumber) != CFBooleanGetTypeID(),
+              schemaNumber.doubleValue.rounded(.towardZero) == schemaNumber.doubleValue,
+              Double(schemaNumber.intValue) == schemaNumber.doubleValue,
+              let capabilityValue = body["capability"] as? String,
+              let capability = DesktopHostCapability(rawValue: capabilityValue),
+              capability == .projectRootPick else {
+            return nil
+        }
+
+        return DesktopHostPickerRequest(
+            schemaVersion: schemaNumber.intValue,
+            capability: capability
+        )
+    }
+}
+
+public enum DesktopHostPickerResult: Equatable, Sendable {
+    case selected(path: String)
+    case cancelled
+
+    public var messageBody: [String: Any] {
+        switch self {
+        case let .selected(path):
+            return [
+                "schemaVersion": DesktopHostBridgePolicy.schemaVersion,
+                "capability": DesktopHostCapability.projectRootPick.rawValue,
+                "status": "selected",
+                "path": path
+            ]
+        case .cancelled:
+            return [
+                "schemaVersion": DesktopHostBridgePolicy.schemaVersion,
+                "capability": DesktopHostCapability.projectRootPick.rawValue,
+                "status": "cancelled"
+            ]
+        }
     }
 }
 
@@ -168,17 +238,22 @@ public enum DesktopHostBridgeDecision: Equatable, Sendable {
     case reject(DesktopHostBridgeRejection)
 }
 
+public enum DesktopHostPickerDecision: Equatable, Sendable {
+    case allow(DesktopHostCapability)
+    case reject(DesktopHostBridgeRejection)
+}
+
 public struct DesktopHostBridgePolicy: Sendable {
     public static let schemaVersion = 1
 
     private let scheme: String
     private let host: String
     private let port: Int
-    private let supportedActions: Set<DesktopHostAction>
+    private let supportedCapabilities: Set<DesktopHostCapability>
 
     public init?(
         baseURL: URL,
-        supportedActions: Set<DesktopHostAction> = Set(DesktopHostAction.allCases)
+        supportedCapabilities: Set<DesktopHostCapability> = Set(DesktopHostCapability.allCases)
     ) {
         guard let scheme = baseURL.scheme?.lowercased(),
               scheme == "http" || scheme == "https",
@@ -190,14 +265,40 @@ public struct DesktopHostBridgePolicy: Sendable {
         self.scheme = scheme
         self.host = host
         self.port = baseURL.port ?? (scheme == "https" ? 443 : 80)
-        self.supportedActions = supportedActions
+        self.supportedCapabilities = supportedCapabilities
     }
 
     public var capabilityProjection: DesktopHostCapabilityProjection {
         DesktopHostCapabilityProjection(
             schemaVersion: Self.schemaVersion,
-            capabilities: DesktopHostAction.allCases.filter(supportedActions.contains)
+            capabilities: DesktopHostCapability.allCases.filter(supportedCapabilities.contains)
         )
+    }
+
+    private func rejection(
+        schemaVersion: Int,
+        capability: DesktopHostCapability,
+        source: DesktopHostBridgeSource,
+        userGestureAttested: Bool
+    ) -> DesktopHostBridgeRejection? {
+        guard schemaVersion == Self.schemaVersion else {
+            return .unsupportedSchemaVersion
+        }
+        guard userGestureAttested else {
+            return .userGestureRequired
+        }
+        guard source.isMainFrame else {
+            return .mainFrameRequired
+        }
+        guard source.scheme == scheme,
+              source.host == host,
+              source.port == port else {
+            return .originMismatch
+        }
+        guard supportedCapabilities.contains(capability) else {
+            return .capabilityUnavailable
+        }
+        return nil
     }
 
     public func decision(
@@ -205,23 +306,30 @@ public struct DesktopHostBridgePolicy: Sendable {
         source: DesktopHostBridgeSource,
         userGestureAttested: Bool
     ) -> DesktopHostBridgeDecision {
-        guard request.schemaVersion == Self.schemaVersion else {
-            return .reject(.unsupportedSchemaVersion)
-        }
-        guard userGestureAttested else {
-            return .reject(.userGestureRequired)
-        }
-        guard source.isMainFrame else {
-            return .reject(.mainFrameRequired)
-        }
-        guard source.scheme == scheme,
-              source.host == host,
-              source.port == port else {
-            return .reject(.originMismatch)
-        }
-        guard supportedActions.contains(request.action) else {
-            return .reject(.capabilityUnavailable)
+        if let rejection = rejection(
+            schemaVersion: request.schemaVersion,
+            capability: request.action.capability,
+            source: source,
+            userGestureAttested: userGestureAttested
+        ) {
+            return .reject(rejection)
         }
         return .allow(request.action)
+    }
+
+    public func pickerDecision(
+        for request: DesktopHostPickerRequest,
+        source: DesktopHostBridgeSource,
+        userGestureAttested: Bool
+    ) -> DesktopHostPickerDecision {
+        if let rejection = rejection(
+            schemaVersion: request.schemaVersion,
+            capability: request.capability,
+            source: source,
+            userGestureAttested: userGestureAttested
+        ) {
+            return .reject(rejection)
+        }
+        return .allow(request.capability)
     }
 }

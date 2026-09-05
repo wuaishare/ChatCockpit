@@ -29,6 +29,9 @@
 "Add Project" = "Add Project";
 "Add Project Root" = "Add Project Root";
 "Add Root" = "Add Root";
+"Choose Project Folder" = "Choose Project Folder";
+"Choose" = "Choose";
+"Choose one folder for the Project workflow. ChatCockpit only returns the folder you explicitly select." = "Choose one folder for the Project workflow. ChatCockpit only returns the folder you explicitly select.";
 "Open Project Center" = "Open Project Center";
 "Remove Root" = "Remove Root";
 "Remove Project Root?" = "Remove Project Root?";

@@ -15,9 +15,7 @@ import {
 import {
   ApartmentOutlined,
   FolderAddOutlined,
-  GlobalOutlined,
   ImportOutlined,
-  LaptopOutlined,
   MoreOutlined,
   ProjectOutlined,
   ReloadOutlined,
@@ -36,10 +34,15 @@ import {
 } from "../../api";
 import type { LocaleCode } from "../../i18n";
 import {
+  DESKTOP_HOST_CAPABILITIES,
+  desktopHostPickerAttributes,
+  hasDesktopHostCapability,
+  subscribeDesktopHostPickerResults
+} from "../../desktop-host-bridge";
+import {
   hasLocalProductActionPath,
   isLocalProductActionPath,
   localProductActionTarget,
-  productActionTargetRequiresLocalHost,
   productActionTargets
 } from "../../product-action-availability";
 import {
@@ -60,6 +63,7 @@ import type {
 } from "../../types";
 import { WorkspaceOnboardingDrawer } from "../continuity/WorkspaceOnboardingDrawer";
 import { StateNotice } from "../StateNotice";
+import { ProjectActionTargetList } from "./ProjectActionTargetList";
 import { UiText as Text } from "../UiText";
 import "./projects.css";
 
@@ -74,8 +78,6 @@ interface AddProjectFormValues {
   displayName: string;
   path: string;
 }
-
-type AddProjectLocation = "local" | "remote";
 
 interface AttachRootFormValues {
   projectId: string;
@@ -123,7 +125,7 @@ export function ProjectCenterView({
   const [addOpen, setAddOpen] = useState(false);
   const [addLoading, setAddLoading] = useState(false);
   const [addStep, setAddStep] = useState<0 | 1>(0);
-  const [addLocation, setAddLocation] = useState<AddProjectLocation>("local");
+  const [addTargetId, setAddTargetId] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [discoveryLoading, setDiscoveryLoading] = useState(false);
   const [discoveryError, setDiscoveryError] = useState<string | null>(null);
@@ -204,21 +206,26 @@ export function ProjectCenterView({
   }, [projects, query]);
 
   const localProjectTarget = localProductActionTarget(projectRootTargets);
-  const remoteProjectTargets = projectRootTargets.filter((target) => target.locality === "remote");
-  const localProjectAvailable = localProjectTarget
-    ? isLocalProductActionPath(localProjectTarget)
+  const selectedProjectTarget = addTargetId
+    ? projectRootTargets.find((target) => target.deviceId === addTargetId) ?? null
+    : null;
+  const selectedProjectTargetExecutable = selectedProjectTarget
+    ? isLocalProductActionPath(selectedProjectTarget)
     : false;
-  const localProjectAvailabilityHint = !localProjectTarget
-    ? copy.actionAvailabilityUnknown
-    : productActionTargetRequiresLocalHost(localProjectTarget)
-      ? copy.localHostRequired
-      : isLocalProductActionPath(localProjectTarget)
-        ? null
-        : copy.actionUnavailable;
-  const remoteProjectAvailabilityHint = remoteProjectTargets.length === 0
-    ? copy.noRemoteTargets
-    : copy.remoteProjectUnavailable;
   const localDiscoveryAvailable = projectDiscoveryTargets.some(isLocalProductActionPath);
+  const projectRootPickerAvailable = hasDesktopHostCapability(
+    DESKTOP_HOST_CAPABILITIES.projectRootPick
+  );
+
+  useEffect(() => {
+    if (!projectRootPickerAvailable || !addOpen) return;
+    return subscribeDesktopHostPickerResults((result) => {
+      if (result.capability !== DESKTOP_HOST_CAPABILITIES.projectRootPick) return;
+      if (result.status === "selected") {
+        addForm.setFieldValue("path", result.path);
+      }
+    });
+  }, [addForm, addOpen, projectRootPickerAvailable]);
 
   const openAddProject = useCallback((candidate?: ProjectRootDiscoveryCandidate) => {
     addForm.resetFields();
@@ -226,13 +233,13 @@ export function ProjectCenterView({
       displayName: candidate?.name ?? "",
       path: candidate?.privatePath ?? ""
     });
-    setAddLocation("local");
+    setAddTargetId(localProjectTarget?.deviceId ?? null);
     setAddStep(candidate ? 1 : 0);
     setAddOpen(true);
-  }, [addForm]);
+  }, [addForm, localProjectTarget?.deviceId]);
 
   const submitAddProject = async (values: AddProjectFormValues) => {
-    if (!configRevision || addLocation !== "local" || !localProjectAvailable) return;
+    if (!configRevision || !selectedProjectTargetExecutable) return;
     setAddLoading(true);
     try {
       const result = await createProject({
@@ -488,7 +495,7 @@ export function ProjectCenterView({
                 <Button
                   key="next"
                   type="primary"
-                  disabled={addLocation !== "local" || !localProjectAvailable}
+                  disabled={!selectedProjectTargetExecutable}
                   onClick={() => setAddStep(1)}
                 >
                   {copy.next}
@@ -505,29 +512,15 @@ export function ProjectCenterView({
         destroyOnHidden
       >
         {addStep === 0 ? (
-          <div className="project-add-location-grid" aria-label={copy.projectLocation}>
-            <button
-              type="button"
-              className={`project-add-location-card${addLocation === "local" ? " is-selected" : ""}${!localProjectAvailable ? " is-disabled" : ""}`}
-              disabled={!localProjectAvailable}
-              onClick={() => setAddLocation("local")}
-            >
-              <span className="project-add-location-card__icon"><LaptopOutlined /></span>
-              <strong>{copy.localProject}</strong>
-              <span>{copy.localProjectDescription}</span>
-              {localProjectAvailabilityHint ? <small>{localProjectAvailabilityHint}</small> : null}
-            </button>
-            <button
-              type="button"
-              className="project-add-location-card is-disabled"
-              disabled
-            >
-              <span className="project-add-location-card__icon"><GlobalOutlined /></span>
-              <strong>{copy.remoteProject}</strong>
-              <span>{copy.remoteProjectDescription}</span>
-              <small>{remoteProjectAvailabilityHint}</small>
-            </button>
-          </div>
+          <>
+            <Text as="p" type="secondary">{copy.projectLocation}</Text>
+            <ProjectActionTargetList
+              locale={locale}
+              targets={projectRootTargets}
+              selectedTargetId={addTargetId}
+              onSelectLocalTarget={(target) => setAddTargetId(target.deviceId)}
+            />
+          </>
         ) : (
           <>
             <Text as="p" type="secondary">{copy.addProjectDescription}</Text>
@@ -536,7 +529,19 @@ export function ProjectCenterView({
                 <Input autoComplete="off" placeholder={copy.projectNamePlaceholder} />
               </Form.Item>
               <Form.Item name="path" label={copy.sourceFolder} rules={[{ required: true }]}>
-                <Input autoComplete="off" placeholder={copy.sourceFolderPlaceholder} />
+                <Input
+                  autoComplete="off"
+                  placeholder={copy.sourceFolderPlaceholder}
+                  addonAfter={projectRootPickerAvailable ? (
+                    <Button
+                      type="text"
+                      size="small"
+                      {...desktopHostPickerAttributes()}
+                    >
+                      {copy.chooseFolder}
+                    </Button>
+                  ) : null}
+                />
               </Form.Item>
               <Alert type="info" showIcon message={copy.manualPathHint} />
             </Form>

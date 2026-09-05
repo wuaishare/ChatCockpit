@@ -173,11 +173,100 @@ struct DesktopEmbeddedRendererPolicyTests {
         )
     }
 
+    @Test("Desktop Host picker request is strict, typed, and never a deep link")
+    func desktopHostPickerRequestParsing() {
+        #expect(
+            DesktopHostPickerRequest.parse(messageBody: [
+                "schemaVersion": NSNumber(value: 1),
+                "capability": "project.root.pick"
+            ]) == DesktopHostPickerRequest()
+        )
+        #expect(
+            DesktopHostPickerRequest.parse(messageBody: [
+                "schemaVersion": NSNumber(value: true),
+                "capability": "project.root.pick"
+            ]) == nil
+        )
+        #expect(
+            DesktopHostPickerRequest.parse(messageBody: [
+                "schemaVersion": NSNumber(value: 1),
+                "capability": "operator.setup"
+            ]) == nil
+        )
+        #expect(
+            DesktopHostPickerRequest.parse(messageBody: [
+                "schemaVersion": NSNumber(value: 1),
+                "capability": "project.root.pick",
+                "path": "/tmp/forged"
+            ]) == nil
+        )
+        #expect(DesktopHostAction(rawValue: DesktopHostCapability.projectRootPick.rawValue) == nil)
+        #expect(DesktopHostAction(deepLinkURL: URL(string: "chatcockpit://project/root/pick")!) == nil)
+
+        #expect(
+            DesktopHostPickerResult.selected(path: "/chosen/root").messageBody as NSDictionary
+            == [
+                "schemaVersion": 1,
+                "capability": "project.root.pick",
+                "status": "selected",
+                "path": "/chosen/root"
+            ] as NSDictionary
+        )
+        #expect(
+            DesktopHostPickerResult.cancelled.messageBody as NSDictionary
+            == [
+                "schemaVersion": 1,
+                "capability": "project.root.pick",
+                "status": "cancelled"
+            ] as NSDictionary
+        )
+    }
+
+    @Test("Desktop Host picker requires trusted main-frame gesture, exact origin, and capability")
+    func desktopHostPickerPolicy() {
+        let source = DesktopHostBridgeSource(
+            scheme: "http",
+            host: "127.0.0.1",
+            port: 4318,
+            isMainFrame: true
+        )
+        let policy = DesktopHostBridgePolicy(
+            baseURL: URL(string: "http://127.0.0.1:4318/ui/")!
+        )!
+
+        #expect(
+            policy.pickerDecision(
+                for: DesktopHostPickerRequest(),
+                source: source,
+                userGestureAttested: true
+            ) == .allow(.projectRootPick)
+        )
+        #expect(
+            policy.pickerDecision(
+                for: DesktopHostPickerRequest(),
+                source: source,
+                userGestureAttested: false
+            ) == .reject(.userGestureRequired)
+        )
+
+        let withoutPicker = DesktopHostBridgePolicy(
+            baseURL: URL(string: "http://127.0.0.1:4318/ui/")!,
+            supportedCapabilities: [.operatorSetup, .connectivity]
+        )!
+        #expect(
+            withoutPicker.pickerDecision(
+                for: DesktopHostPickerRequest(),
+                source: source,
+                userGestureAttested: true
+            ) == .reject(.capabilityUnavailable)
+        )
+    }
+
     @Test("Desktop Host capability projection never exceeds the policy allowlist")
     func desktopHostCapabilityProjection() {
         let policy = DesktopHostBridgePolicy(
             baseURL: URL(string: "http://127.0.0.1:4318/ui/")!,
-            supportedActions: [.connectivity]
+            supportedCapabilities: [.connectivity]
         )!
 
         #expect(policy.capabilityProjection.schemaVersion == 1)

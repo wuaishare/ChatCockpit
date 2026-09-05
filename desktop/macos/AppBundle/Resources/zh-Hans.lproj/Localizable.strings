@@ -29,6 +29,9 @@
 "Add Project" = "添加项目";
 "Add Project Root" = "添加项目目录";
 "Add Root" = "添加目录";
+"Choose Project Folder" = "选择项目文件夹";
+"Choose" = "选择";
+"Choose one folder for the Project workflow. ChatCockpit only returns the folder you explicitly select." = "为当前项目工作流选择一个文件夹。ChatCockpit 只会返回你明确选择的这个目录。";
 "Open Project Center" = "打开项目中心";
 "Remove Root" = "移除目录";
 "Remove Project Root?" = "移除项目目录？";
