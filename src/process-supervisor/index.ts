@@ -10,6 +10,13 @@ import { createProcessSupervisorManagedProcessClientFactory } from "./downstream
 import { ProcessSupervisorLeaseAuthorityReader } from "./lease-authority-reader.js";
 import { ProcessSupervisorIpcServer } from "./server.js";
 import {
+  NativeSessionTerminalSupervisor
+} from "./native-session-terminal.js";
+import {
+  isSessionTerminalSupervisorMethod,
+  ProcessSupervisorSessionTerminalRuntime
+} from "./session-terminal-runtime.js";
+import {
   ProcessSupervisorRuntimeService,
   type ProcessSupervisorAuthorityReader,
   type ProcessSupervisorEventStore,
@@ -35,6 +42,7 @@ export interface ProcessSupervisorDaemonOptions {
   authorityReader?: ClosableAuthorityReader;
   eventJournal?: ProcessSupervisorEventStore;
   runtimeLifecycle?: ProcessSupervisorRuntimeLifecycleAdapter;
+  sessionTerminals?: NativeSessionTerminalSupervisor;
   generationFactory?: () => string;
   heartbeatIntervalMs?: number;
   watchdogIntervalMs?: number;
@@ -42,6 +50,7 @@ export interface ProcessSupervisorDaemonOptions {
 
 export class ProcessSupervisorDaemon {
   private runtimeService: ProcessSupervisorRuntimeService | null = null;
+  private sessionTerminalRuntime: ProcessSupervisorSessionTerminalRuntime | null = null;
   private ipcServer: ProcessSupervisorIpcServer | null = null;
   private authorityReader: ClosableAuthorityReader | null = null;
   private ownsAuthorityReader = false;
@@ -98,16 +107,27 @@ export class ProcessSupervisorDaemon {
         runtimeLifecycle:
           this.options.runtimeLifecycle ?? createDeviceRuntimeLifecycleAdapter(this.paths)
       });
+      const sessionTerminalRuntime = new ProcessSupervisorSessionTerminalRuntime({
+        generation,
+        terminals: this.options.sessionTerminals,
+        authorityReader,
+        eventJournal
+      });
       const ipcServer = new ProcessSupervisorIpcServer({
         paths: this.paths,
         generation,
         authToken,
-        handler: (method, params) => runtimeService.handle(method, params)
+        handler: async (method, params) =>
+          isSessionTerminalSupervisorMethod(method)
+            ? sessionTerminalRuntime.handle(method, params)
+            : await runtimeService.handle(method, params)
       });
       this.runtimeService = runtimeService;
+      this.sessionTerminalRuntime = sessionTerminalRuntime;
       this.ipcServer = ipcServer;
       await ipcServer.start();
       runtimeService.startWatchdog(this.options.watchdogIntervalMs ?? 15_000);
+      sessionTerminalRuntime.startWatchdog(this.options.watchdogIntervalMs ?? 15_000);
       this.heartbeatTimer = setInterval(() => {
         this.writeStatus("ready");
       }, this.options.heartbeatIntervalMs ?? 3_000);
@@ -124,6 +144,7 @@ export class ProcessSupervisorDaemon {
     if (
       !this.started &&
       !this.runtimeService &&
+      !this.sessionTerminalRuntime &&
       !this.ipcServer &&
       !this.currentGeneration
     ) {
@@ -135,6 +156,7 @@ export class ProcessSupervisorDaemon {
       this.heartbeatTimer = null;
     }
     this.runtimeService?.stopWatchdog();
+    this.sessionTerminalRuntime?.stopWatchdog();
 
     const ipcServer = this.ipcServer;
     this.ipcServer = null;
@@ -147,6 +169,10 @@ export class ProcessSupervisorDaemon {
     if (runtimeService) {
       await runtimeService.closeAll();
     }
+
+    const sessionTerminalRuntime = this.sessionTerminalRuntime;
+    this.sessionTerminalRuntime = null;
+    sessionTerminalRuntime?.closeAll();
 
     if (this.ownsAuthorityReader) {
       this.authorityReader?.close?.();
@@ -167,7 +193,9 @@ export class ProcessSupervisorDaemon {
       startedAt: this.startedAt,
       heartbeatAt: new Date().toISOString(),
       state,
-      ownedProcessCount: this.runtimeService?.listOwned().length ?? 0,
+      ownedProcessCount:
+        (this.runtimeService?.listOwned().length ?? 0) +
+        (this.sessionTerminalRuntime?.listOwned().length ?? 0),
       protocolVersion: PROCESS_SUPERVISOR_PROTOCOL_VERSION
     });
   }
@@ -178,6 +206,7 @@ export class ProcessSupervisorDaemon {
       this.heartbeatTimer = null;
     }
     this.runtimeService?.stopWatchdog();
+    this.sessionTerminalRuntime?.stopWatchdog();
     try {
       await this.ipcServer?.close();
     } catch {
@@ -190,6 +219,12 @@ export class ProcessSupervisorDaemon {
       // Preserve the original startup failure.
     }
     this.runtimeService = null;
+    try {
+      this.sessionTerminalRuntime?.closeAll();
+    } catch {
+      // Preserve the original startup failure.
+    }
+    this.sessionTerminalRuntime = null;
     if (this.ownsAuthorityReader) {
       try {
         this.authorityReader?.close?.();

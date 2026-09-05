@@ -16,7 +16,13 @@ import type {
   ProductActionTargetAvailability
 } from "../types";
 import { getOperationalStatusTone } from "../status-language";
-import { hasLocalProductActionPath } from "../product-action-availability";
+import {
+  hasLocalProductActionPath,
+  isProductActionTargetAvailable,
+  isRemoteProductActionPath,
+  productActionTargetRequiresLocalHost,
+  productActionTargets
+} from "../product-action-availability";
 import { SectionCard } from "./SectionCard";
 import { RuntimeLiveExecutionPanel } from "./RuntimeLiveExecutionPanel";
 
@@ -44,18 +50,13 @@ export function RuntimeView({ locale, health }: RuntimeViewProps) {
     setError(null);
     try {
       const projection = await fetchProductActions();
-      const runtimeTargets = projection.actions.find((action) => action.id === "runtime.lifecycle")?.targets ?? [];
+      const runtimeTargets = productActionTargets(projection, "runtime.lifecycle");
       setTargets(runtimeTargets);
       setProcessTerminateAvailable(
         hasLocalProductActionPath(projection, "runtime.process.terminate")
       );
 
-      const inspectableTargets = runtimeTargets.filter(
-        (target) =>
-          target.locality === "remote" &&
-          target.availability === "available-targeted" &&
-          target.executionMode === "remote-device-rpc"
-      );
+      const inspectableTargets = runtimeTargets.filter(isRemoteProductActionPath);
       const entries = await Promise.all(
         inspectableTargets.map(async (target) => {
           try {
@@ -82,10 +83,10 @@ export function RuntimeView({ locale, health }: RuntimeViewProps) {
   }, []);
 
   function lifecycleReason(target: ProductActionTargetAvailability): string {
-    if (target.availability === "available-local" || target.availability === "available-targeted") {
+    if (isProductActionTargetAvailable(target)) {
       return copy.reasonReady;
     }
-    if (target.availability === "requires-local-host") return copy.reasonLocalHost;
+    if (productActionTargetRequiresLocalHost(target)) return copy.reasonLocalHost;
     if (target.availability === "offline" || target.reason === "device-offline") return copy.reasonOffline;
     if (target.reason === "device-agent-update-required") return copy.reasonAgentUpdate;
     if (target.reason === "target-capability-not-attested") return copy.reasonNotAttested;
@@ -129,11 +130,7 @@ export function RuntimeView({ locale, health }: RuntimeViewProps) {
     target: ProductActionTargetAvailability,
     action: DeviceRuntimeLifecycleAction
   ): Promise<void> {
-    if (
-      target.locality !== "remote" ||
-      target.availability !== "available-targeted" ||
-      target.executionMode !== "remote-device-rpc"
-    ) {
+    if (!isRemoteProductActionPath(target)) {
       return;
     }
     const key = `${target.deviceId}:${action}`;
@@ -193,10 +190,7 @@ export function RuntimeView({ locale, health }: RuntimeViewProps) {
           dataSource={targets}
           renderItem={(target) => {
             const state = runtimeState(target);
-            const canControl =
-              target.locality === "remote" &&
-              target.availability === "available-targeted" &&
-              target.executionMode === "remote-device-rpc";
+            const canControl = isRemoteProductActionPath(target);
             return (
               <List.Item
                 actions={[

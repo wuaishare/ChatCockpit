@@ -19,6 +19,9 @@ import type {
   ProjectRootDiscoveryResponse,
   ProjectExecutionObservabilityResponse,
   RuntimeExecutionObservabilityResponse,
+  RuntimeSessionTerminalListResponse,
+  RuntimeSessionTerminalReadResponse,
+  RuntimeSessionTerminalResponse,
   RuntimeManagedProcessInputResponse,
   RuntimeManagedProcessResizeResponse,
   RuntimeManagedProcessTerminateResponse,
@@ -970,6 +973,89 @@ export async function fetchProjectExecutionObservability(
 
 export async function fetchRuntimeExecutionObservability(): Promise<RuntimeExecutionObservabilityResponse> {
   return requestJson<RuntimeExecutionObservabilityResponse>("/api/runtime/executions");
+}
+
+export async function fetchRuntimeSessionTerminals(
+  sessionId?: string
+): Promise<RuntimeSessionTerminalListResponse> {
+  const query = sessionId ? `?sessionId=${encodeURIComponent(sessionId)}` : "";
+  return requestJson<RuntimeSessionTerminalListResponse>(
+    `/api/runtime/executions/terminals${query}`
+  );
+}
+
+export async function startRuntimeSessionTerminal(input: {
+  sessionId: string;
+  rows: number;
+  cols: number;
+  idempotencyKey: string;
+}): Promise<RuntimeSessionTerminalResponse> {
+  return postBodyJson<RuntimeSessionTerminalResponse>(
+    "/api/runtime/executions/terminals",
+    input
+  );
+}
+
+export async function readRuntimeSessionTerminal(input: {
+  terminalId: string;
+  cursor?: number;
+  limit?: number;
+}): Promise<RuntimeSessionTerminalReadResponse> {
+  const query = new URLSearchParams();
+  if (input.cursor !== undefined) query.set("cursor", String(input.cursor));
+  if (input.limit !== undefined) query.set("limit", String(input.limit));
+  const suffix = query.size > 0 ? `?${query.toString()}` : "";
+  return requestJson<RuntimeSessionTerminalReadResponse>(
+    `/api/runtime/executions/terminals/${encodeURIComponent(input.terminalId)}/output${suffix}`
+  );
+}
+
+export async function inputRuntimeSessionTerminal(input: {
+  terminalId: string;
+  expectedRevision: number;
+  input: string;
+  idempotencyKey: string;
+}): Promise<RuntimeSessionTerminalResponse> {
+  return postBodyJson<RuntimeSessionTerminalResponse>(
+    `/api/runtime/executions/terminals/${encodeURIComponent(input.terminalId)}/input`,
+    {
+      expectedRevision: input.expectedRevision,
+      input: input.input,
+      idempotencyKey: input.idempotencyKey
+    }
+  );
+}
+
+export async function resizeRuntimeSessionTerminal(input: {
+  terminalId: string;
+  expectedRevision: number;
+  rows: number;
+  cols: number;
+  idempotencyKey: string;
+}): Promise<RuntimeSessionTerminalResponse> {
+  return postBodyJson<RuntimeSessionTerminalResponse>(
+    `/api/runtime/executions/terminals/${encodeURIComponent(input.terminalId)}/resize`,
+    {
+      expectedRevision: input.expectedRevision,
+      rows: input.rows,
+      cols: input.cols,
+      idempotencyKey: input.idempotencyKey
+    }
+  );
+}
+
+export async function terminateRuntimeSessionTerminal(input: {
+  terminalId: string;
+  expectedRevision: number;
+  idempotencyKey: string;
+}): Promise<RuntimeSessionTerminalResponse> {
+  return postBodyJson<RuntimeSessionTerminalResponse>(
+    `/api/runtime/executions/terminals/${encodeURIComponent(input.terminalId)}/terminate`,
+    {
+      expectedRevision: input.expectedRevision,
+      idempotencyKey: input.idempotencyKey
+    }
+  );
 }
 
 export async function inputRuntimeManagedProcess(input: {

@@ -23,6 +23,8 @@ import type {
 import type { LocaleCode } from "../i18n";
 import {
   hasLocalProductActionPath,
+  isRemoteProductActionPath,
+  productActionTargetRequiresLocalHost,
   productActionTargets
 } from "../product-action-availability";
 import { getDevicesCopy } from "../i18n/devices";
@@ -98,10 +100,8 @@ export function DevicesView({ locale }: DevicesViewProps) {
       const runtimeCandidates = deviceResponse.devices.filter((device) =>
         device.locality === "remote" &&
         device.trust === "paired" &&
-        nextRuntimeTargets.some((target) =>
-          target.deviceId === device.id &&
-          target.availability === "available-targeted" &&
-          target.executionMode === "remote-device-rpc"
+        nextRuntimeTargets.some(
+          (target) => target.deviceId === device.id && isRemoteProductActionPath(target)
         )
       );
       setRuntimeLoading(Object.fromEntries(runtimeCandidates.map((device) => [device.id, true])));
@@ -232,7 +232,7 @@ export function DevicesView({ locale }: DevicesViewProps) {
     if (target.availability === "unavailable") {
       return { state: "unavailable" as const, label: copy.runtimeChannelUnavailable };
     }
-    if (target.availability !== "available-targeted") {
+    if (!isRemoteProductActionPath(target)) {
       return { state: "unknown" as const, label: copy.runtimeUnknown };
     }
     if (runtimeLoading[device.id]) return { state: "loading" as const, label: copy.runtimeLoading };
@@ -253,7 +253,7 @@ export function DevicesView({ locale }: DevicesViewProps) {
   };
 
   const runtimeActionHint = (target: ProductActionTargetAvailability): string => {
-    if (target.availability === "requires-local-host") return copy.runtimeLocalHostRequired;
+    if (productActionTargetRequiresLocalHost(target)) return copy.runtimeLocalHostRequired;
     if (target.availability === "offline") return copy.runtimeUnknown;
     if (target.reason === "device-agent-update-required") return copy.runtimeAgentUpdate;
     if (target.reason === "target-capability-not-attested") return copy.runtimeCapabilityNotAttested;
@@ -264,7 +264,7 @@ export function DevicesView({ locale }: DevicesViewProps) {
   const remoteReadLabel = (device: ManagedDeviceSummary) => {
     const target = workspaceReadTargets.find((candidate) => candidate.deviceId === device.id) ?? null;
     if (!target) return copy.remoteReadUnavailable;
-    if (target.availability === "available-targeted") return copy.remoteReadReady;
+    if (isRemoteProductActionPath(target)) return copy.remoteReadReady;
     if (target.availability === "offline") return copy.remoteReadOffline;
     if (target.reason === "device-agent-update-required") return copy.remoteReadAgentUpdate;
     if (target.reason === "target-capability-not-attested") return copy.remoteReadCapabilityNotAttested;
@@ -311,9 +311,9 @@ export function DevicesView({ locale }: DevicesViewProps) {
               const runtimeTarget = runtimeLifecycleTargets.find(
                 (candidate) => candidate.deviceId === device.id
               ) ?? null;
-              const runtimeActionAvailable =
-                runtimeTarget?.availability === "available-targeted" &&
-                runtimeTarget.executionMode === "remote-device-rpc";
+              const runtimeActionAvailable = runtimeTarget
+                ? isRemoteProductActionPath(runtimeTarget)
+                : false;
               const runtimeActionUnavailable =
                 Boolean(runtimeTarget) && !runtimeActionAvailable;
               return (

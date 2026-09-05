@@ -2158,6 +2158,45 @@ export interface RuntimeExecutionObservabilityResponse {
   counts: ProjectExecutionObservabilityResponse["counts"];
 }
 
+export type RuntimeSessionTerminalState = "running" | "exited" | "terminated" | "failed";
+
+export interface RuntimeSessionTerminalProjection {
+  terminalId: string;
+  processRevision: number;
+  sessionId: string;
+  workspaceId: string;
+  repoId: string | null;
+  state: RuntimeSessionTerminalState;
+  exitCode: number | null;
+  rows: number;
+  cols: number;
+  privatePid: number;
+  startedAt: string;
+  earliestSequence: number;
+  nextSequence: number;
+  scrollbackBytes: number;
+  scrollbackTruncated: boolean;
+  supervisorGeneration: string;
+}
+
+export interface RuntimeSessionTerminalResponse extends RuntimeSessionTerminalProjection {
+  ok: true;
+}
+
+export interface RuntimeSessionTerminalListResponse {
+  ok: true;
+  terminals: RuntimeSessionTerminalProjection[];
+}
+
+export interface RuntimeSessionTerminalReadResponse extends RuntimeSessionTerminalResponse {
+  chunks: Array<{
+    sequence: number;
+    content: string;
+  }>;
+  nextCursor: number;
+  cursorTruncated: boolean;
+}
+
 export interface RuntimeManagedProcessInputResponse {
   ok: true;
   processId: string;

@@ -43,13 +43,17 @@ function cookiePair(response: Response): string {
 }
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "chatcockpit-project-root-discovery-api-"));
-const primaryRepo = path.join(root, "primary");
+const primaryRepo = path.join(root, "TokenPilot");
+const tokenPilotOpsRepo = path.join(root, "TokenPilot-ops-private");
 const discoveredRepo = path.join(root, "discovered");
 const discoveredSubdir = path.join(discoveredRepo, "packages", "web");
 const nativeProjectRepo = path.join(root, "native-project");
+const nativeProjectExtraRepo = path.join(root, "native-project-extra");
 initRepo(primaryRepo, "primary.txt");
+initRepo(tokenPilotOpsRepo, "ops-private.txt");
 initRepo(discoveredRepo, "discovered.txt");
 initRepo(nativeProjectRepo, "native-project.txt");
+initRepo(nativeProjectExtraRepo, "native-project-extra.txt");
 fs.mkdirSync(discoveredSubdir, { recursive: true });
 
 const paths = buildFixturePaths(primaryRepo);
@@ -62,7 +66,7 @@ const config = {
   workspaceAllowlist: [primaryRepo],
   projects: {
     primary: {
-      displayName: "Primary",
+      displayName: "primary",
       primaryRootId,
       rootIds: [primaryRootId]
     }
@@ -110,6 +114,13 @@ fs.writeFileSync(
   path.join(codexHome, ".codex-global-state.json"),
   `${JSON.stringify({
     "local-projects": {
+      "tokenpilot-native-project": {
+        id: "tokenpilot-native-project",
+        name: "TokenPilot",
+        rootPaths: [primaryRepo, tokenPilotOpsRepo],
+        createdAt: 40,
+        updatedAt: 250
+      },
       "local-native-project": {
         id: "local-native-project",
         name: "Native Project",
@@ -123,6 +134,13 @@ fs.writeFileSync(
         rootPaths: [nativeProjectRepo],
         createdAt: 60,
         updatedAt: 140
+      },
+      "local-native-project-superset": {
+        id: "local-native-project-superset",
+        name: "Native Project Superset",
+        rootPaths: [nativeProjectRepo, nativeProjectExtraRepo],
+        createdAt: 70,
+        updatedAt: 130
       }
     },
     "electron-saved-workspace-roots": [nativeProjectRepo]
@@ -186,7 +204,15 @@ try {
       privatePath: string;
       registration: string;
       existingRootId: string | null;
+      existingProjectSlug: string | null;
       sources: Array<{ sourceId: string; signalKinds: string[] }>;
+    }>;
+    groups: Array<{
+      groupId: string;
+      name: string;
+      candidateIds: string[];
+      registration: string;
+      existingProjectSlug: string | null;
     }>;
   };
   const after = fs.readFileSync(configPath, "utf8");
@@ -195,7 +221,7 @@ try {
   assert.deepEqual(body.sources.map((source) => [source.id, source.status]), [
     ["codex-native-history", "ready"]
   ]);
-  assert.equal(body.candidates.length, 2);
+  assert.equal(body.candidates.length, 5);
   const threadOnly = body.candidates.find(
     (candidate) => candidate.privatePath === fs.realpathSync.native(discoveredRepo)
   );
@@ -221,14 +247,45 @@ try {
   assert.ok(nativeProject);
   assert.equal(nativeProject.kind, "git-repository");
   assert.equal(nativeProject.registration, "unregistered");
-  assert.equal(body.groups.length, 2);
+  const nativeProjectExtra = body.candidates.find(
+    (candidate) => candidate.privatePath === fs.realpathSync.native(nativeProjectExtraRepo)
+  );
+  assert.ok(nativeProjectExtra);
+  assert.equal(nativeProjectExtra.registration, "unregistered");
+
+  const tokenPilotPrimary = body.candidates.find(
+    (candidate) => candidate.privatePath === fs.realpathSync.native(primaryRepo)
+  );
+  const tokenPilotOps = body.candidates.find(
+    (candidate) => candidate.privatePath === fs.realpathSync.native(tokenPilotOpsRepo)
+  );
+  assert.ok(tokenPilotPrimary);
+  assert.ok(tokenPilotOps);
+  assert.equal(tokenPilotPrimary.registration, "registered");
+  assert.equal(tokenPilotPrimary.existingRootId, primaryRootId);
+  assert.equal(tokenPilotPrimary.existingProjectSlug, "primary");
+  assert.equal(tokenPilotOps.registration, "unregistered");
+  assert.equal(tokenPilotOps.existingProjectSlug, null);
+
+  const tokenPilotGroup = body.groups.find((group) => group.name === "TokenPilot");
+  assert.ok(tokenPilotGroup);
+  assert.equal(tokenPilotGroup.registration, "partially-registered");
+  assert.equal(tokenPilotGroup.existingProjectSlug, "primary");
+  assert.deepEqual(tokenPilotGroup.candidateIds, [
+    tokenPilotPrimary.candidateId,
+    tokenPilotOps.candidateId
+  ]);
+
+  assert.equal(body.groups.length, 4);
   assert.deepEqual(
     body.groups.map((group) => [group.name, group.candidateIds]),
     [
+      ["TokenPilot", [tokenPilotPrimary.candidateId, tokenPilotOps.candidateId]],
       ["Native Project", [nativeProject.candidateId]],
-      ["Native Project Alias", [nativeProject.candidateId]]
+      ["Native Project Alias", [nativeProject.candidateId]],
+      ["Native Project Superset", [nativeProject.candidateId, nativeProjectExtra.candidateId]]
     ],
-    "distinct native logical projects may share one physical Git root candidate"
+    "native logical projects may be multi-root while aliases may share one physical Git root"
   );
 
   const missingCsrf = await fetch(`${server.baseUrl}/api/projects/discovery/reconcile-native`, {
@@ -261,21 +318,46 @@ try {
   assert.equal(reconcileBody.created[0]?.projectSlug, "native-project");
   assert.equal(reconcileBody.created[0]?.repoId, "native-project");
   assert.equal(reconcileBody.created[0]?.sourceId, "codex-native-history");
-  assert.equal(reconcileBody.reused.length, 1);
-  assert.equal(reconcileBody.reused[0]?.projectSlug, "native-project");
+  assert.equal(reconcileBody.reused.length, 2);
+  const tokenPilotReuse = reconcileBody.reused.find((entry) => entry.projectSlug === "primary");
+  const nativeAliasReuse = reconcileBody.reused.find((entry) => entry.projectSlug === "native-project");
+  assert.ok(tokenPilotReuse, "partially registered TokenPilot must reuse and complete the existing Project");
+  assert.ok(nativeAliasReuse);
   assert.equal(
-    reconcileBody.reused[0]?.repoId,
+    nativeAliasReuse.repoId,
     reconcileBody.created[0]?.repoId,
     "a duplicate native logical project must reuse the physical root materialized earlier in the same reconcile"
   );
+  assert.equal(reconcileBody.skipped.length, 1);
+  assert.equal(reconcileBody.skipped[0]?.reason, "partial-registration");
 
   const projectsAfter = await fetch(`${server.baseUrl}/api/projects?status=active`, {
     headers: { cookie }
   });
   assert.equal(projectsAfter.status, 200);
   const projectsAfterBody = (await projectsAfter.json()) as {
-    projects: Array<{ project: { id: string; slug: string }; workspaces: Array<{ id: string; repoId: string }> }>;
+    projects: Array<{
+      project: { id: string; slug: string; displayName: string };
+      roots: unknown[];
+      workspaces: Array<{ id: string; repoId: string }>;
+    }>;
   };
+  const reconciledTokenPilot = projectsAfterBody.projects.find(
+    (entry) => entry.project.slug === "primary"
+  );
+  assert.ok(reconciledTokenPilot);
+  assert.equal(reconciledTokenPilot.project.displayName, "TokenPilot");
+  assert.equal(reconciledTokenPilot.roots.length, 2);
+  assert.equal(reconciledTokenPilot.workspaces.length, 2);
+  assert.equal(
+    reconciledTokenPilot.workspaces.some((workspace) => workspace.repoId === "primary"),
+    true
+  );
+  assert.equal(
+    reconciledTokenPilot.workspaces.some((workspace) => workspace.repoId !== "primary"),
+    true
+  );
+
   const materialized = projectsAfterBody.projects.find((entry) => entry.project.slug === "native-project");
   assert.ok(materialized);
   assert.deepEqual(materialized.workspaces.map((workspace) => workspace.repoId), ["native-project"]);
@@ -539,10 +621,34 @@ try {
   const registeredNative = discoveryAfterBody.candidates.find(
     (candidate) => candidate.privatePath === fs.realpathSync.native(nativeProjectRepo)
   );
+  const registeredTokenPilotPrimary = discoveryAfterBody.candidates.find(
+    (candidate) => candidate.privatePath === fs.realpathSync.native(primaryRepo)
+  );
+  const registeredTokenPilotOps = discoveryAfterBody.candidates.find(
+    (candidate) => candidate.privatePath === fs.realpathSync.native(tokenPilotOpsRepo)
+  );
+  const stillUnregisteredNativeExtra = discoveryAfterBody.candidates.find(
+    (candidate) => candidate.privatePath === fs.realpathSync.native(nativeProjectExtraRepo)
+  );
+  const reconciledTokenPilotGroup = discoveryAfterBody.groups.find(
+    (group) => group.name === "TokenPilot"
+  );
+  const nativeSupersetGroup = discoveryAfterBody.groups.find(
+    (group) => group.name === "Native Project Superset"
+  );
   const stillUnregisteredThread = discoveryAfterBody.candidates.find(
     (candidate) => candidate.privatePath === fs.realpathSync.native(discoveredRepo)
   );
   assert.equal(registeredNative?.registration, "registered");
+  assert.equal(registeredTokenPilotPrimary?.registration, "registered");
+  assert.equal(registeredTokenPilotPrimary?.existingProjectSlug, "primary");
+  assert.equal(registeredTokenPilotOps?.registration, "registered");
+  assert.equal(registeredTokenPilotOps?.existingProjectSlug, "primary");
+  assert.equal(reconciledTokenPilotGroup?.registration, "registered");
+  assert.equal(reconciledTokenPilotGroup?.existingProjectSlug, "primary");
+  assert.equal(stillUnregisteredNativeExtra?.registration, "unregistered");
+  assert.equal(nativeSupersetGroup?.registration, "partially-registered");
+  assert.equal(nativeSupersetGroup?.existingProjectSlug, "native-project");
   assert.equal(stillUnregisteredThread?.registration, "unregistered");
 
   const replay = await fetch(`${server.baseUrl}/api/projects/discovery/reconcile-native`, {
@@ -560,11 +666,13 @@ try {
   );
   const replayBody = (await replay.json()) as typeof reconcileBody;
   assert.equal(replayBody.created.length, 0);
-  assert.equal(replayBody.reused.length, 2);
+  assert.equal(replayBody.reused.length, 3);
   assert.deepEqual(
     [...new Set(replayBody.reused.map((entry) => entry.projectSlug))],
-    ["native-project"]
+    ["primary", "native-project"]
   );
+  assert.equal(replayBody.skipped.length, 1);
+  assert.equal(replayBody.skipped[0]?.reason, "partial-registration");
 
   process.stdout.write("VERIFY_PROJECT_ROOT_DISCOVERY_API_OK\n");
 } finally {

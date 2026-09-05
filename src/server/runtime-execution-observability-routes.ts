@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import type { RuntimeExecutionObservabilityService } from "../application/runtime-execution-observability-service.js";
 import type { RuntimeManagedProcessControlService } from "../application/runtime-managed-process-control-service.js";
+import type { RuntimeSessionTerminalService } from "../application/runtime-session-terminal-service.js";
 import { sendApiError, sendUnknownApiError, validationError } from "./errors.js";
 import { requireMachineLocalOwner } from "./machine-local-authority.js";
 import { OPERATOR_CSRF_HEADER } from "./operator-auth-context.js";
@@ -36,6 +37,38 @@ const managedProcessOutputSchema = z.object({
   processId: z.string().min(1).max(200),
   cursor: z.coerce.number().int().nonnegative().optional(),
   limit: z.coerce.number().int().min(1).max(200).optional()
+});
+
+const listSessionTerminalsSchema = z.object({
+  sessionId: z.string().min(1).max(200).optional()
+});
+
+const startSessionTerminalSchema = z.object({
+  sessionId: z.string().min(1).max(200),
+  rows: z.number().int().min(1).max(500),
+  cols: z.number().int().min(1).max(1_000),
+  idempotencyKey: z.string().min(8).max(128).regex(/^[A-Za-z0-9._:-]+$/)
+});
+
+const sessionTerminalOutputSchema = z.object({
+  terminalId: z.string().min(1).max(200),
+  cursor: z.coerce.number().int().nonnegative().optional(),
+  limit: z.coerce.number().int().min(1).max(200).optional()
+});
+
+const sessionTerminalControlSchema = z.object({
+  terminalId: z.string().min(1).max(200),
+  expectedRevision: z.number().int().positive(),
+  idempotencyKey: z.string().min(8).max(128).regex(/^[A-Za-z0-9._:-]+$/)
+});
+
+const sessionTerminalInputSchema = sessionTerminalControlSchema.extend({
+  input: z.string().min(1).max(32_768)
+});
+
+const sessionTerminalResizeSchema = sessionTerminalControlSchema.extend({
+  rows: z.number().int().min(1).max(500),
+  cols: z.number().int().min(1).max(1_000)
 });
 
 const MANAGED_PROCESS_OUTPUT_RETENTION_MS = 30 * 60_000;
@@ -96,7 +129,8 @@ function machineLocalOwnerMutationOnly(
 export function registerRuntimeExecutionObservabilityRoutes(
   app: FastifyInstance,
   service: RuntimeExecutionObservabilityService,
-  processControl: RuntimeManagedProcessControlService
+  processControl: RuntimeManagedProcessControlService,
+  sessionTerminal: RuntimeSessionTerminalService
 ): void {
   app.get("/api/runtime/executions", (request, reply) =>
     machineLocalOwnerOnly(request, reply, () => ({
@@ -183,6 +217,132 @@ export function registerRuntimeExecutionObservabilityRoutes(
         return {
           ok: true,
           ...(await processControl.terminate(
+            operationContextFromRequest(request),
+            parsed.data
+          ))
+        };
+      } catch (error) {
+        return sendUnknownApiError(reply, error);
+      }
+    })
+  );
+  app.get("/api/runtime/executions/terminals", (request, reply) =>
+    machineLocalOwnerOnly(request, reply, async () => {
+      const parsed = listSessionTerminalsSchema.safeParse(request.query);
+      if (!parsed.success) {
+        return sendUnknownApiError(reply, validationError(parsed.error));
+      }
+      try {
+        return {
+          ok: true,
+          ...(await sessionTerminal.list(
+            operationContextFromRequest(request),
+            parsed.data.sessionId
+          ))
+        };
+      } catch (error) {
+        return sendUnknownApiError(reply, error);
+      }
+    })
+  );
+  app.post("/api/runtime/executions/terminals", (request, reply) =>
+    machineLocalOwnerMutationOnly(request, reply, async () => {
+      const parsed = startSessionTerminalSchema.safeParse(request.body);
+      if (!parsed.success) {
+        return sendUnknownApiError(reply, validationError(parsed.error));
+      }
+      try {
+        return {
+          ok: true,
+          ...(await sessionTerminal.start(
+            operationContextFromRequest(request),
+            parsed.data
+          ))
+        };
+      } catch (error) {
+        return sendUnknownApiError(reply, error);
+      }
+    })
+  );
+  app.get("/api/runtime/executions/terminals/:terminalId/output", (request, reply) =>
+    machineLocalOwnerOnly(request, reply, async () => {
+      const parsed = sessionTerminalOutputSchema.safeParse({
+        ...(request.params as Record<string, unknown>),
+        ...(request.query as Record<string, unknown>)
+      });
+      if (!parsed.success) {
+        return sendUnknownApiError(reply, validationError(parsed.error));
+      }
+      try {
+        return {
+          ok: true,
+          ...(await sessionTerminal.read(
+            operationContextFromRequest(request),
+            parsed.data
+          ))
+        };
+      } catch (error) {
+        return sendUnknownApiError(reply, error);
+      }
+    })
+  );
+  app.post("/api/runtime/executions/terminals/:terminalId/input", (request, reply) =>
+    machineLocalOwnerMutationOnly(request, reply, async () => {
+      const parsed = sessionTerminalInputSchema.safeParse({
+        ...(request.params as Record<string, unknown>),
+        ...(request.body as Record<string, unknown>)
+      });
+      if (!parsed.success) {
+        return sendUnknownApiError(reply, validationError(parsed.error));
+      }
+      try {
+        return {
+          ok: true,
+          ...(await sessionTerminal.input(
+            operationContextFromRequest(request),
+            parsed.data
+          ))
+        };
+      } catch (error) {
+        return sendUnknownApiError(reply, error);
+      }
+    })
+  );
+  app.post("/api/runtime/executions/terminals/:terminalId/resize", (request, reply) =>
+    machineLocalOwnerMutationOnly(request, reply, async () => {
+      const parsed = sessionTerminalResizeSchema.safeParse({
+        ...(request.params as Record<string, unknown>),
+        ...(request.body as Record<string, unknown>)
+      });
+      if (!parsed.success) {
+        return sendUnknownApiError(reply, validationError(parsed.error));
+      }
+      try {
+        return {
+          ok: true,
+          ...(await sessionTerminal.resize(
+            operationContextFromRequest(request),
+            parsed.data
+          ))
+        };
+      } catch (error) {
+        return sendUnknownApiError(reply, error);
+      }
+    })
+  );
+  app.post("/api/runtime/executions/terminals/:terminalId/terminate", (request, reply) =>
+    machineLocalOwnerMutationOnly(request, reply, async () => {
+      const parsed = sessionTerminalControlSchema.safeParse({
+        ...(request.params as Record<string, unknown>),
+        ...(request.body as Record<string, unknown>)
+      });
+      if (!parsed.success) {
+        return sendUnknownApiError(reply, validationError(parsed.error));
+      }
+      try {
+        return {
+          ok: true,
+          ...(await sessionTerminal.stop(
             operationContextFromRequest(request),
             parsed.data
           ))

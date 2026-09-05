@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 INPUT_MANIFEST="${ROOT}/scripts/runtime/node-runtime-manifest.json"
 CACHE_DIR="${ROOT}/dist/runtime-cache"
+NPM_CACHE_DIR="${CACHE_DIR}/npm"
 OUTPUT_BASE="${ROOT}/dist/macos-runtime"
 ARCH=""
 
@@ -54,7 +55,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-mkdir -p "${CACHE_DIR}" "${OUTPUT_BASE}/${ARCH}"
+mkdir -p "${CACHE_DIR}" "${NPM_CACHE_DIR}" "${OUTPUT_BASE}/${ARCH}"
 rm -rf "${STAGING_DIR}"
 mkdir -p "${APP_DIR}" "${NODE_DIR}/bin"
 
@@ -76,12 +77,14 @@ cp -R "${ROOT}/openapi" "${APP_DIR}/openapi"
 mkdir -p "${APP_DIR}/scripts"
 cp "${ROOT}/scripts/macos-manage-local-server.sh" "${APP_DIR}/scripts/macos-manage-local-server.sh"
 cp "${ROOT}/scripts/macos-manage-device-agent.sh" "${APP_DIR}/scripts/macos-manage-device-agent.sh"
+cp "${ROOT}/scripts/ensure-node-pty-runtime.mjs" "${APP_DIR}/scripts/ensure-node-pty-runtime.mjs"
 chmod 755 "${APP_DIR}/scripts/macos-manage-local-server.sh"
 chmod 755 "${APP_DIR}/scripts/macos-manage-device-agent.sh"
 
 (
   cd "${APP_DIR}"
-  npm ci --omit=dev --ignore-scripts --no-audit --fund=false
+  npm ci --omit=dev --ignore-scripts --no-audit --fund=false --cache "${NPM_CACHE_DIR}"
+  node scripts/ensure-node-pty-runtime.mjs
 )
 
 if [[ ! -f "${ARCHIVE_PATH}" ]]; then
@@ -122,7 +125,10 @@ const criticalFiles = [
   "app/web/dist/build-provenance.json",
   "app/openapi/chatcockpit.openapi.yaml",
   "app/scripts/macos-manage-local-server.sh",
-  "app/scripts/macos-manage-device-agent.sh"
+  "app/scripts/macos-manage-device-agent.sh",
+  "app/scripts/ensure-node-pty-runtime.mjs",
+  `app/node_modules/node-pty/prebuilds/darwin-${architecture}/pty.node`,
+  `app/node_modules/node-pty/prebuilds/darwin-${architecture}/spawn-helper`
 ];
 
 function sha256(relativePath) {

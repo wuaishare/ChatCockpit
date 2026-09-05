@@ -503,6 +503,11 @@ assert.doesNotMatch(embeddedRendererPolicy, /DesktopSharedRendererPrototypeConfi
 assert.match(embeddedRendererPolicy, /host == "127\.0\.0\.1"/);
 assert.match(embeddedRendererPolicy, /candidateScheme == scheme/);
 assert.match(embeddedRendererPolicy, /url\.port == port/);
+assert.match(embeddedRendererPolicy, /Self\.isAllowedDesktopHandoff\(url\)/);
+assert.match(embeddedRendererPolicy, /host == "operator" && url\.path == "\/setup"/);
+assert.match(embeddedRendererPolicy, /host == "settings" && url\.path == "\/connectivity"/);
+assert.match(embeddedRendererPolicy, /url\.query == nil/);
+assert.match(embeddedRendererPolicy, /url\.fragment == nil/);
 assert.match(embeddedRendererPolicy, /case openExternally/);
 assert.match(appModel, /func prepareEmbeddedCockpit\(/);
 assert.match(appModel, /DesktopEmbeddedNavigationPolicy\(baseURL: baseURL\)/);

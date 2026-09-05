@@ -444,7 +444,7 @@ export class ProjectRootDiscoveryService {
           candidateIds: members.map((candidate) => candidate.candidateId),
           registration,
           existingProjectSlug:
-            registration === "registered" ? [...registeredSlugs][0] ?? null : null,
+            registeredSlugs.size === 1 ? [...registeredSlugs][0] ?? null : null,
           latestObservedAt: projectGroup.latestObservedAt
         };
       })
