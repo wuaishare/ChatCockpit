@@ -87,6 +87,16 @@ chmod 755 "${APP_DIR}/scripts/macos-manage-device-agent.sh"
   node scripts/ensure-node-pty-runtime.mjs
 )
 
+# npm preserves the native helper payload but cross-architecture installs can
+# lose its executable bit. The verifier intentionally requires X_OK, so repair
+# the selected target architecture before hashing and packaging the runtime.
+TARGET_NODE_PTY_ROOT="${APP_DIR}/node_modules/node-pty/prebuilds/darwin-${ARCH}"
+TARGET_NODE_PTY_NATIVE="${TARGET_NODE_PTY_ROOT}/pty.node"
+TARGET_NODE_PTY_HELPER="${TARGET_NODE_PTY_ROOT}/spawn-helper"
+[[ -f "${TARGET_NODE_PTY_NATIVE}" ]] || { echo "Missing node-pty native module for ${ARCH}" >&2; exit 1; }
+[[ -f "${TARGET_NODE_PTY_HELPER}" ]] || { echo "Missing node-pty spawn-helper for ${ARCH}" >&2; exit 1; }
+chmod 755 "${TARGET_NODE_PTY_HELPER}"
+
 if [[ ! -f "${ARCHIVE_PATH}" ]]; then
   curl --fail --location --retry 3 --retry-delay 1 \
     --output "${ARCHIVE_PATH}.download" \
