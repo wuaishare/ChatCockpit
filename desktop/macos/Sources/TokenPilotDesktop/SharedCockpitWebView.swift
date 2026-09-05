@@ -11,10 +11,85 @@ private enum SharedCockpitState {
     case loadFailed(URL)
 }
 
+private enum SharedCockpitDesktopHostBridge {
+    static let handlerName = "chatcockpitDesktopHost"
+    static let actionAttribute = "data-chatcockpit-desktop-host-action"
+    static let capabilityGlobal = "__chatcockpitDesktopHostCapabilities"
+    static let contentWorld = WKContentWorld.world(name: "ChatCockpitDesktopHostBridge")
+
+    static func capabilityProjectionScript(
+        _ projection: DesktopHostCapabilityProjection
+    ) -> String {
+        guard let data = try? JSONEncoder().encode(projection),
+              let json = String(data: data, encoding: .utf8) else {
+            return ""
+        }
+
+        return """
+        (() => {
+          const raw = \(json);
+          const projection = Object.freeze({
+            schemaVersion: raw.schemaVersion,
+            capabilities: Object.freeze(Array.from(raw.capabilities))
+          });
+          Object.defineProperty(window, "\(capabilityGlobal)", {
+            value: projection,
+            writable: false,
+            configurable: false,
+            enumerable: false
+          });
+        })();
+        """
+    }
+
+    static func trustedGestureScript(
+        _ projection: DesktopHostCapabilityProjection
+    ) -> String {
+        let actions = projection.capabilities.map(\.rawValue)
+        guard let data = try? JSONEncoder().encode(actions),
+              let json = String(data: data, encoding: .utf8) else {
+            return ""
+        }
+
+        return """
+        (() => {
+          const allowedActions = new Set(\(json));
+          document.addEventListener("click", (event) => {
+            if (!(event instanceof MouseEvent) ||
+                !event.isTrusted ||
+                event.defaultPrevented ||
+                event.button !== 0) {
+              return;
+            }
+            if (navigator.userActivation && !navigator.userActivation.isActive) {
+              return;
+            }
+            const element = event.target instanceof Element
+              ? event.target.closest("[\(actionAttribute)]")
+              : null;
+            if (!element) {
+              return;
+            }
+            const action = element.getAttribute("\(actionAttribute)");
+            if (!action || !allowedActions.has(action)) {
+              return;
+            }
+            event.preventDefault();
+            window.webkit.messageHandlers.\(handlerName).postMessage({
+              schemaVersion: \(DesktopHostBridgePolicy.schemaVersion),
+              action
+            });
+          }, true);
+        })();
+        """
+    }
+}
+
 struct SharedCockpitView: View {
     @ObservedObject var model: DesktopAppModel
     let destination: DesktopCockpitDestination?
     let onOpenThisMac: () -> Void
+    let onDesktopHostAction: (DesktopHostAction) -> Void
 
     @State private var state: SharedCockpitState = .preparing
     @State private var attempt = 0
@@ -137,7 +212,8 @@ struct SharedCockpitView: View {
             },
             onLoadFailed: {
                 state = .loadFailed(baseURL)
-            }
+            },
+            onDesktopHostAction: onDesktopHostAction
         )
     }
 
@@ -191,26 +267,33 @@ private struct SharedCockpitWebView: NSViewRepresentable {
     let baseURL: URL
     let onLoadingChanged: (Bool) -> Void
     let onLoadFailed: () -> Void
+    let onDesktopHostAction: (DesktopHostAction) -> Void
 
-    final class Coordinator: NSObject, WKNavigationDelegate {
+    final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         let policy: DesktopEmbeddedNavigationPolicy
+        let hostBridgePolicy: DesktopHostBridgePolicy
         let baseURL: URL
         var requestedURL: URL
         var onLoadingChanged: (Bool) -> Void
         var onLoadFailed: () -> Void
+        var onDesktopHostAction: (DesktopHostAction) -> Void
 
         init(
             policy: DesktopEmbeddedNavigationPolicy,
+            hostBridgePolicy: DesktopHostBridgePolicy,
             baseURL: URL,
             requestedURL: URL,
             onLoadingChanged: @escaping (Bool) -> Void,
-            onLoadFailed: @escaping () -> Void
+            onLoadFailed: @escaping () -> Void,
+            onDesktopHostAction: @escaping (DesktopHostAction) -> Void
         ) {
             self.policy = policy
+            self.hostBridgePolicy = hostBridgePolicy
             self.baseURL = baseURL
             self.requestedURL = requestedURL
             self.onLoadingChanged = onLoadingChanged
             self.onLoadFailed = onLoadFailed
+            self.onDesktopHostAction = onDesktopHostAction
         }
 
         private func sameOrigin(_ left: URL, _ right: URL) -> Bool {
@@ -321,6 +404,47 @@ private struct SharedCockpitWebView: NSViewRepresentable {
             }
         }
 
+        private func hostBridgeSource(
+            for message: WKScriptMessage
+        ) -> DesktopHostBridgeSource? {
+            guard let url = message.frameInfo.request.url,
+                  let scheme = url.scheme?.lowercased(),
+                  let host = url.host?.lowercased() else {
+                return nil
+            }
+            let port = url.port ?? (scheme == "https" ? 443 : 80)
+            return DesktopHostBridgeSource(
+                scheme: scheme,
+                host: host,
+                port: port,
+                isMainFrame: message.frameInfo.isMainFrame
+            )
+        }
+
+        func userContentController(
+            _ userContentController: WKUserContentController,
+            didReceive message: WKScriptMessage
+        ) {
+            guard message.name == SharedCockpitDesktopHostBridge.handlerName,
+                  let request = DesktopHostBridgeRequest.parse(messageBody: message.body),
+                  let source = hostBridgeSource(for: message) else {
+                return
+            }
+
+            switch hostBridgePolicy.decision(
+                for: request,
+                source: source,
+                userGestureAttested: true
+            ) {
+            case let .allow(action):
+                DispatchQueue.main.async { [weak self] in
+                    self?.onDesktopHostAction(action)
+                }
+            case .reject:
+                return
+            }
+        }
+
         func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
             onLoadingChanged(true)
         }
@@ -345,10 +469,12 @@ private struct SharedCockpitWebView: NSViewRepresentable {
     func makeCoordinator() -> Coordinator {
         Coordinator(
             policy: DesktopEmbeddedNavigationPolicy(baseURL: baseURL)!,
+            hostBridgePolicy: DesktopHostBridgePolicy(baseURL: baseURL)!,
             baseURL: baseURL,
             requestedURL: requestedURL,
             onLoadingChanged: onLoadingChanged,
-            onLoadFailed: onLoadFailed
+            onLoadFailed: onLoadFailed,
+            onDesktopHostAction: onDesktopHostAction
         )
     }
 
@@ -356,6 +482,30 @@ private struct SharedCockpitWebView: NSViewRepresentable {
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = .nonPersistent()
         configuration.preferences.javaScriptCanOpenWindowsAutomatically = false
+
+        let projection = context.coordinator.hostBridgePolicy.capabilityProjection
+        let userContentController = configuration.userContentController
+        userContentController.add(
+            context.coordinator,
+            contentWorld: SharedCockpitDesktopHostBridge.contentWorld,
+            name: SharedCockpitDesktopHostBridge.handlerName
+        )
+        userContentController.addUserScript(
+            WKUserScript(
+                source: SharedCockpitDesktopHostBridge.capabilityProjectionScript(projection),
+                injectionTime: .atDocumentStart,
+                forMainFrameOnly: true,
+                in: .page
+            )
+        )
+        userContentController.addUserScript(
+            WKUserScript(
+                source: SharedCockpitDesktopHostBridge.trustedGestureScript(projection),
+                injectionTime: .atDocumentStart,
+                forMainFrameOnly: true,
+                in: SharedCockpitDesktopHostBridge.contentWorld
+            )
+        )
 
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = context.coordinator
@@ -366,6 +516,7 @@ private struct SharedCockpitWebView: NSViewRepresentable {
     func updateNSView(_ webView: WKWebView, context: Context) {
         context.coordinator.onLoadingChanged = onLoadingChanged
         context.coordinator.onLoadFailed = onLoadFailed
+        context.coordinator.onDesktopHostAction = onDesktopHostAction
 
         guard context.coordinator.requestedURL != requestedURL else { return }
         context.coordinator.navigate(webView, to: requestedURL)

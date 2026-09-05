@@ -11,6 +11,10 @@ import {
   productActionTargetRequiresLocalHost,
   productActionTargets
 } from "../product-action-availability";
+import {
+  DESKTOP_HOST_ACTIONS,
+  desktopHostActionAttributes
+} from "../desktop-host-bridge";
 import type {
   ConnectivityProviderDetection,
   ConnectivityProviderMachineAction,
@@ -37,7 +41,8 @@ interface PublicAccessViewProps {
   providerStatusError: string | null;
   productActions: ProductActionsResponse | null;
   productActionsError: string | null;
-  desktopHostHandoffAvailable: boolean;
+  desktopHostCapabilityAvailable: boolean;
+  desktopAppFallbackAvailable: boolean;
   routeStatus: PublicRouteCandidateSnapshot | null;
   routeStatusError: string | null;
   routeMutating: boolean;
@@ -201,7 +206,8 @@ export function PublicAccessView({
   providerStatusError,
   productActions,
   productActionsError,
-  desktopHostHandoffAvailable,
+  desktopHostCapabilityAvailable,
+  desktopAppFallbackAvailable,
   routeStatus,
   routeStatusError,
   routeMutating,
@@ -899,8 +905,16 @@ export function PublicAccessView({
       >
         {providerNeedsLocalHost || productActionsError ? (
           <div className="public-access-provider-bridge">
-            {providerNeedsLocalHost && desktopHostHandoffAvailable ? (
-              <Button href="chatcockpit://settings/connectivity">
+            {providerNeedsLocalHost &&
+            (desktopHostCapabilityAvailable || desktopAppFallbackAvailable) ? (
+              <Button
+                href={
+                  desktopHostCapabilityAvailable
+                    ? undefined
+                    : "chatcockpit://settings/connectivity"
+                }
+                {...desktopHostActionAttributes(DESKTOP_HOST_ACTIONS.connectivity)}
+              >
                 {copy.continueOnThisMac}
               </Button>
             ) : null}

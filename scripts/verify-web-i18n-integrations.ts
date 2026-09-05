@@ -111,8 +111,17 @@ assert.doesNotMatch(app, /value: "gpt-helper"/);
 assert.doesNotMatch(dashboard, /GptHelper|GPT Helper/);
 assert.doesNotMatch(setup, /GptHelper|GPT Helper/);
 assert.match(i18n, /setupAppAction: "在 ChatCockpit App 中设置"/);
-assert.match(operatorSetup, /chatcockpit:\/\/operator\/setup/);
+assert.match(operatorSetup, /desktopHostCapabilityAvailable \|\| desktopSetupAvailable/);
+assert.match(
+  operatorSetup,
+  /href=\{desktopHostCapabilityAvailable \? undefined : "chatcockpit:\/\/operator\/setup"\}/
+);
+assert.match(
+  operatorSetup,
+  /desktopHostActionAttributes\(DESKTOP_HOST_ACTIONS\.operatorSetup\)/
+);
 assert.match(operatorSetup, /desktopSetupAvailable/);
+assert.match(operatorSetup, /desktopHostCapabilityAvailable/);
 assert.match(operatorSetup, /loading=\{checking\}/);
 assert.match(operatorSetup, /feedbackError \? "error" : "info"/);
 assert.match(app, /operatorSetupChecking/);

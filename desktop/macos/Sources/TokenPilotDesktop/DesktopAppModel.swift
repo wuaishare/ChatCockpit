@@ -772,19 +772,22 @@ final class DesktopAppModel: ObservableObject {
     }
 
     @discardableResult
-    func handleDeepLink(_ url: URL) -> DesktopDeepLinkDestination? {
-        guard url.scheme?.lowercased() == "chatcockpit" else { return nil }
-        let host = url.host?.lowercased()
-        if host == "operator", url.path == "/setup" {
+    func performDesktopHostAction(_ action: DesktopHostAction) -> DesktopDeepLinkDestination {
+        switch action {
+        case .operatorSetup:
             DesktopScenePresentation.present {
                 self.setOwnerPasswordFromPanel()
             }
             return .operatorSetup
-        }
-        if host == "settings", url.path == "/connectivity" {
+        case .connectivity:
             return .connectivity
         }
-        return nil
+    }
+
+    @discardableResult
+    func handleDeepLink(_ url: URL) -> DesktopDeepLinkDestination? {
+        guard let action = DesktopHostAction(deepLinkURL: url) else { return nil }
+        return performDesktopHostAction(action)
     }
 
     func refreshSecurity() async {

@@ -260,13 +260,14 @@ assert.match(appModel, /enum DesktopScenePresentation/);
 assert.match(appModel, /enum DesktopDeepLinkDestination: Equatable/);
 assert.match(appModel, /case operatorSetup/);
 assert.match(appModel, /case connectivity/);
+assert.match(appModel, /func performDesktopHostAction\(_ action: DesktopHostAction\)/);
 assert.match(appModel, /func handleDeepLink\(_ url: URL\) -> DesktopDeepLinkDestination\?/);
-assert.match(appModel, /url\.scheme\?\.lowercased\(\) == "chatcockpit"/);
-assert.match(appModel, /host == "operator", url\.path == "\/setup"/);
-assert.match(appModel, /host == "settings", url\.path == "\/connectivity"/);
-assert.match(appModel, /return \.operatorSetup/);
-assert.match(appModel, /return \.connectivity/);
-assert.match(appModel, /return nil/);
+assert.match(appModel, /guard let action = DesktopHostAction\(deepLinkURL: url\) else \{ return nil \}/);
+assert.match(appModel, /return performDesktopHostAction\(action\)/);
+assert.match(embeddedRendererPolicy, /public init\?\(deepLinkURL url: URL\)/);
+assert.match(embeddedRendererPolicy, /url\.query == nil/);
+assert.match(embeddedRendererPolicy, /url\.fragment == nil/);
+assert.doesNotMatch(appModel, /url\.scheme\?\.lowercased\(\) == "chatcockpit"/);
 assert.match(appEntry, /\.onOpenURL \{ url in[\s\S]*guard let destination = model\.handleDeepLink\(url\) else \{ return \}/s);
 assert.match(appEntry, /destination == \.connectivity[\s\S]*mainSection = \.thisMac[\s\S]*operationalSettingsFocus = \.connectivity/s);
 assert.match(appEntry, /DesktopScenePresentation\.presentMainWindow\(\)/);
@@ -504,8 +505,9 @@ assert.match(embeddedRendererPolicy, /host == "127\.0\.0\.1"/);
 assert.match(embeddedRendererPolicy, /candidateScheme == scheme/);
 assert.match(embeddedRendererPolicy, /url\.port == port/);
 assert.match(embeddedRendererPolicy, /Self\.isAllowedDesktopHandoff\(url\)/);
-assert.match(embeddedRendererPolicy, /host == "operator" && url\.path == "\/setup"/);
-assert.match(embeddedRendererPolicy, /host == "settings" && url\.path == "\/connectivity"/);
+assert.match(embeddedRendererPolicy, /DesktopHostAction\(deepLinkURL: url\) != nil/);
+assert.match(embeddedRendererPolicy, /case \("operator", "\/setup"\):/);
+assert.match(embeddedRendererPolicy, /case \("settings", "\/connectivity"\):/);
 assert.match(embeddedRendererPolicy, /url\.query == nil/);
 assert.match(embeddedRendererPolicy, /url\.fragment == nil/);
 assert.match(embeddedRendererPolicy, /case openExternally/);
@@ -530,11 +532,21 @@ assert.match(sharedCockpitWebView, /WKNavigationDelegate/);
 assert.match(sharedCockpitWebView, /DesktopEmbeddedNavigationPolicy/);
 assert.match(sharedCockpitWebView, /navigationAction\.navigationType == \.linkActivated/);
 assert.match(sharedCockpitWebView, /NSWorkspace\.shared\.open\(url\)/);
-assert.doesNotMatch(sharedCockpitWebView, /WKScriptMessageHandler/);
-assert.doesNotMatch(sharedCockpitWebView, /userContentController\.add/);
+assert.match(sharedCockpitWebView, /WKScriptMessageHandler/);
+assert.match(sharedCockpitWebView, /WKContentWorld\.world\(name: "ChatCockpitDesktopHostBridge"\)/);
+assert.match(
+  sharedCockpitWebView,
+  /userContentController\.add\([\s\S]*contentWorld: SharedCockpitDesktopHostBridge\.contentWorld/
+);
+assert.match(sharedCockpitWebView, /WKUserScript/);
+assert.match(sharedCockpitWebView, /forMainFrameOnly: true/);
 assert.doesNotMatch(sharedCockpitWebView, /evaluateJavaScript/);
-assert.doesNotMatch(sharedCockpitWebView, /WKUserScript/);
-assert.doesNotMatch(sharedCockpitWebView, /window\.webkit\.messageHandlers/);
+assert.match(
+  sharedCockpitWebView,
+  /window\.webkit\.messageHandlers\.\\\(handlerName\)\.postMessage/
+);
+assert.match(sharedCockpitWebView, /event\.isTrusted/);
+assert.match(sharedCockpitWebView, /navigator\.userActivation/);
 assert.match(sharedCockpitWebView, /callAsyncJavaScript\(/);
 assert.match(sharedCockpitWebView, /window\.history\.pushState\(null, "", target\)/);
 assert.match(sharedCockpitWebView, /window\.dispatchEvent\(new PopStateEvent\("popstate"\)\)/);
