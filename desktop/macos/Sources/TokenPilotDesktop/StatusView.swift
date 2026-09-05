@@ -70,7 +70,8 @@ struct MainAppView: View {
             SharedCockpitView(
                 model: model,
                 destination: activeSection == .thisMac ? nil : activeSection.cockpitDestination,
-                onOpenThisMac: { selection = .thisMac }
+                onOpenThisMac: { selection = .thisMac },
+                onDesktopHostAction: handleDesktopHostAction
             )
             .opacity(activeSection == .thisMac ? 0 : 1)
             .allowsHitTesting(activeSection != .thisMac)
@@ -107,6 +108,15 @@ struct MainAppView: View {
             await model.refresh()
             await model.refreshSecurity()
             await model.monitorRuntimeStatus()
+        }
+    }
+
+    private func handleDesktopHostAction(_ action: DesktopHostAction) {
+        let destination = model.performDesktopHostAction(action)
+        if destination == .connectivity {
+            selection = .thisMac
+            operationalSettingsFocus = .connectivity
+            DesktopScenePresentation.presentMainWindow()
         }
     }
 }

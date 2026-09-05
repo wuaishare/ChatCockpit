@@ -35,7 +35,9 @@ assert.match(app, /providerStatus=\{connectivityProviderStatus\}/);
 assert.match(app, /providerStatusError=\{connectivityProviderStatusError\}/);
 assert.match(app, /productActions=\{productActions\}/);
 assert.match(app, /productActionsError=\{productActionsError\}/);
-assert.match(app, /desktopHostHandoffAvailable=\{operatorDesktopSetupAvailable\}/);
+assert.match(app, /desktopHostCapabilityAvailable=\{desktopConnectivityCapabilityAvailable\}/);
+assert.match(app, /desktopAppFallbackAvailable=\{operatorDesktopSetupAvailable\}/);
+assert.doesNotMatch(app, /desktopHostHandoffAvailable=\{operatorDesktopSetupAvailable\}/);
 assert.match(app, /fetchConnectivityProviders\(token\)/);
 assert.match(app, /fetchProductActions\(\)/);
 assert.match(app, /setProductActions\(actionResponse\)/);
@@ -159,7 +161,9 @@ assert.match(view, /providerStatus:\s*ConnectivityProviderPublicSnapshot \| null
 assert.match(view, /providerStatusError:\s*string \| null/);
 assert.match(view, /productActions:\s*ProductActionsResponse \| null/);
 assert.match(view, /productActionsError:\s*string \| null/);
-assert.match(view, /desktopHostHandoffAvailable:\s*boolean/);
+assert.match(view, /desktopHostCapabilityAvailable:\s*boolean/);
+assert.match(view, /desktopAppFallbackAvailable:\s*boolean/);
+assert.doesNotMatch(view, /desktopHostHandoffAvailable:\s*boolean/);
 assert.match(view, /providerStatus\.providers\.map/);
 assert.match(view, /provider\.displayName/);
 assert.match(view, /action\.reason === "adapter-not-implemented"/);
@@ -172,7 +176,8 @@ assert.match(view, /"connectivity\.provider\.uninstall"/);
 assert.match(view, /providerActionExecutionPath/);
 assert.match(view, /requiresLocalConnectivityHost/);
 assert.match(view, /providerNeedsLocalHost \|\| productActionsError/);
-assert.match(view, /providerNeedsLocalHost && desktopHostHandoffAvailable/);
+assert.match(view, /desktopHostCapabilityAvailable \|\| desktopAppFallbackAvailable/);
+assert.doesNotMatch(view, /providerNeedsLocalHost && desktopHostHandoffAvailable/);
 assert.match(view, /productActionTargets\(productActions, actionId\)/);
 assert.match(view, /availableProductActionTargets\(targets\)/);
 assert.match(view, /localProductActionTarget\(targets\)/);
@@ -228,7 +233,15 @@ assert.match(view, /onPrepareCutoverIntent\(routeStatus\.candidate!\.id, verific
 assert.doesNotMatch(view, /onCutoverCandidate|executeCutover|cutoverCandidate|executeBootstrap/);
 assert.doesNotMatch(view, /server\.env|launchctl|\.restart\(|LifecycleAction|runtimeRestart/i);
 assert.doesNotMatch(view, /challenge\s*[:=]/i);
-assert.match(view, /href="chatcockpit:\/\/settings\/connectivity"/);
+assert.match(
+  view,
+  /desktopHostCapabilityAvailable[\s\S]*\? undefined[\s\S]*: "chatcockpit:\/\/settings\/connectivity"/
+);
+assert.match(
+  view,
+  /desktopHostActionAttributes\(DESKTOP_HOST_ACTIONS\.connectivity\)/
+);
+assert.doesNotMatch(view, /href="chatcockpit:\/\/settings\/connectivity"/);
 assert.doesNotMatch(view, /chatcockpit:\/\/settings\/connectivity\?/);
 assert.doesNotMatch(view, /chatcockpit:\/\/settings\/connectivity[\s\S]*(provider|action|planId)=/i);
 assert.match(view, /continueOnThisMac/);

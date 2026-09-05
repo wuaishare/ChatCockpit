@@ -2,11 +2,16 @@ import { Alert, Button, Card, Space, Typography } from "antd";
 import { DesktopOutlined, SafetyCertificateOutlined } from "@ant-design/icons";
 
 import { getUiCopy, type LocaleCode } from "../i18n";
+import {
+  DESKTOP_HOST_ACTIONS,
+  desktopHostActionAttributes
+} from "../desktop-host-bridge";
 
 interface OperatorSetupRequiredViewProps {
   locale: LocaleCode;
   checking: boolean;
   desktopSetupAvailable: boolean;
+  desktopHostCapabilityAvailable: boolean;
   feedback: string | null;
   feedbackError: boolean;
   onRefresh: () => void | Promise<void>;
@@ -16,6 +21,7 @@ export function OperatorSetupRequiredView({
   locale,
   checking,
   desktopSetupAvailable,
+  desktopHostCapabilityAvailable,
   feedback,
   feedbackError,
   onRefresh
@@ -33,13 +39,14 @@ export function OperatorSetupRequiredView({
           {copy.setupDescription}
         </Typography.Paragraph>
         <Space direction="vertical" size={12} style={{ width: "100%" }}>
-          {desktopSetupAvailable ? (
+          {desktopHostCapabilityAvailable || desktopSetupAvailable ? (
             <Button
               type="primary"
               block
               size="large"
               icon={<DesktopOutlined />}
-              href="chatcockpit://operator/setup"
+              href={desktopHostCapabilityAvailable ? undefined : "chatcockpit://operator/setup"}
+              {...desktopHostActionAttributes(DESKTOP_HOST_ACTIONS.operatorSetup)}
             >
               {copy.setupAppAction}
             </Button>

@@ -59,4 +59,140 @@ struct DesktopEmbeddedRendererPolicyTests {
             )
         }
     }
+
+    @Test("Desktop Host actions share one exact deep-link allowlist")
+    func desktopHostActionDeepLinks() {
+        #expect(DesktopHostAction(deepLinkURL: DesktopHostAction.operatorSetup.deepLinkURL) == .operatorSetup)
+        #expect(DesktopHostAction(deepLinkURL: DesktopHostAction.connectivity.deepLinkURL) == .connectivity)
+
+        for value in [
+            "chatcockpit://operator/setup?password=secret",
+            "chatcockpit://operator/setup#fragment",
+            "chatcockpit://settings/connectivity?provider=cloudflare",
+            "chatcockpit://settings/runtime",
+            "chatcockpit://unknown/path"
+        ] {
+            #expect(DesktopHostAction(deepLinkURL: URL(string: value)!) == nil)
+        }
+    }
+
+    @Test("Desktop Host bridge message body is strict and typed")
+    func desktopHostBridgeRequestParsing() {
+        #expect(
+            DesktopHostBridgeRequest.parse(messageBody: [
+                "schemaVersion": NSNumber(value: 1),
+                "action": "operator.setup"
+            ]) == DesktopHostBridgeRequest(action: .operatorSetup)
+        )
+        #expect(
+            DesktopHostBridgeRequest.parse(messageBody: [
+                "schemaVersion": NSNumber(value: 1),
+                "action": "settings.connectivity"
+            ]) == DesktopHostBridgeRequest(action: .connectivity)
+        )
+        #expect(
+            DesktopHostBridgeRequest.parse(messageBody: [
+                "schemaVersion": NSNumber(value: true),
+                "action": "operator.setup"
+            ]) == nil
+        )
+        #expect(
+            DesktopHostBridgeRequest.parse(messageBody: [
+                "schemaVersion": NSNumber(value: 1),
+                "action": "runtime.restart"
+            ]) == nil
+        )
+        #expect(
+            DesktopHostBridgeRequest.parse(messageBody: [
+                "schemaVersion": NSNumber(value: 1),
+                "action": "operator.setup",
+                "payload": ["command": "whoami"]
+            ]) == nil
+        )
+    }
+
+    @Test("Desktop Host bridge requires trusted main-frame gesture and exact origin")
+    func desktopHostBridgePolicy() {
+        let policy = DesktopHostBridgePolicy(
+            baseURL: URL(string: "http://127.0.0.1:4318/ui/")!
+        )!
+        let source = DesktopHostBridgeSource(
+            scheme: "http",
+            host: "127.0.0.1",
+            port: 4318,
+            isMainFrame: true
+        )
+
+        for action in DesktopHostAction.allCases {
+            #expect(
+                policy.decision(
+                    for: DesktopHostBridgeRequest(action: action),
+                    source: source,
+                    userGestureAttested: true
+                ) == .allow(action)
+            )
+        }
+
+        #expect(
+            policy.decision(
+                for: DesktopHostBridgeRequest(action: .operatorSetup),
+                source: source,
+                userGestureAttested: false
+            ) == .reject(.userGestureRequired)
+        )
+        #expect(
+            policy.decision(
+                for: DesktopHostBridgeRequest(action: .operatorSetup),
+                source: DesktopHostBridgeSource(
+                    scheme: "http",
+                    host: "127.0.0.1",
+                    port: 4318,
+                    isMainFrame: false
+                ),
+                userGestureAttested: true
+            ) == .reject(.mainFrameRequired)
+        )
+        #expect(
+            policy.decision(
+                for: DesktopHostBridgeRequest(action: .operatorSetup),
+                source: DesktopHostBridgeSource(
+                    scheme: "http",
+                    host: "127.0.0.1",
+                    port: 4319,
+                    isMainFrame: true
+                ),
+                userGestureAttested: true
+            ) == .reject(.originMismatch)
+        )
+        #expect(
+            policy.decision(
+                for: DesktopHostBridgeRequest(schemaVersion: 2, action: .operatorSetup),
+                source: source,
+                userGestureAttested: true
+            ) == .reject(.unsupportedSchemaVersion)
+        )
+    }
+
+    @Test("Desktop Host capability projection never exceeds the policy allowlist")
+    func desktopHostCapabilityProjection() {
+        let policy = DesktopHostBridgePolicy(
+            baseURL: URL(string: "http://127.0.0.1:4318/ui/")!,
+            supportedActions: [.connectivity]
+        )!
+
+        #expect(policy.capabilityProjection.schemaVersion == 1)
+        #expect(policy.capabilityProjection.capabilities == [.connectivity])
+        #expect(
+            policy.decision(
+                for: DesktopHostBridgeRequest(action: .operatorSetup),
+                source: DesktopHostBridgeSource(
+                    scheme: "http",
+                    host: "127.0.0.1",
+                    port: 4318,
+                    isMainFrame: true
+                ),
+                userGestureAttested: true
+            ) == .reject(.capabilityUnavailable)
+        )
+    }
 }

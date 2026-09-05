@@ -79,6 +79,10 @@ import { getPublicAccessCopy } from "./i18n/public-access";
 import type { ApiProblem } from "./types";
 import { consolePath, stripConsoleBasePath } from "./console-path";
 import {
+  DESKTOP_HOST_ACTIONS,
+  hasDesktopHostCapability
+} from "./desktop-host-bridge";
+import {
   resolveBrowserNavigationTarget,
   selectedBrowserNavigationKey,
   type AppViewKey
@@ -406,6 +410,12 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
   const resourceCopy = getResourceCenterCopy(locale);
   const integrationsCopy = getIntegrationsCopy(locale);
   const publicAccessCopy = getPublicAccessCopy(locale);
+  const desktopOperatorSetupCapabilityAvailable = hasDesktopHostCapability(
+    DESKTOP_HOST_ACTIONS.operatorSetup
+  );
+  const desktopConnectivityCapabilityAvailable = hasDesktopHostCapability(
+    DESKTOP_HOST_ACTIONS.connectivity
+  );
   // Transitional non-secret marker for legacy view props. api.ts never transmits it.
   const token = operatorSession ? "operator-session" : null;
 
@@ -1189,6 +1199,7 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
           locale={locale}
           checking={operatorSetupChecking}
           desktopSetupAvailable={operatorDesktopSetupAvailable}
+          desktopHostCapabilityAvailable={desktopOperatorSetupCapabilityAvailable}
           feedback={operatorSetupFeedback}
           feedbackError={operatorSetupFeedbackError}
           onRefresh={() => void bootstrapOperatorAuth(true)}
@@ -1538,7 +1549,8 @@ export default function App({ themeMode, onThemeModeChange }: AppProps) {
                 providerStatusError={connectivityProviderStatusError}
                 productActions={productActions}
                 productActionsError={productActionsError}
-                desktopHostHandoffAvailable={operatorDesktopSetupAvailable}
+                desktopHostCapabilityAvailable={desktopConnectivityCapabilityAvailable}
+                desktopAppFallbackAvailable={operatorDesktopSetupAvailable}
                 routeStatus={publicRouteCandidateStatus}
                 routeStatusError={publicRouteCandidateError}
                 routeMutating={publicRouteCandidateMutating}
