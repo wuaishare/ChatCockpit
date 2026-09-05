@@ -37,6 +37,12 @@ import {
   projectRootKindLabel,
   projectRootRoleLabel
 } from "../../i18n/projects";
+import {
+  isLocalProductActionPath,
+  localProductActionTarget,
+  productActionTargetRequiresLocalHost,
+  productActionTargets
+} from "../../product-action-availability";
 import type {
   ApiProblem,
   ContinuityWorkspaceSnapshot,
@@ -120,7 +126,7 @@ export function ProjectCockpitView({
       ]);
       setDetail(response);
       setProjectRootTargets(
-        actionResponse?.actions.find((action) => action.id === "project.root.manage")?.targets ?? []
+        productActionTargets(actionResponse, "project.root.manage")
       );
       setSelectedWorkspaceId((current) => {
         if (current && response.workspaces.some((workspace) => workspace.id === current)) {
@@ -165,13 +171,15 @@ export function ProjectCockpitView({
     void loadSnapshot();
   }, [loadSnapshot]);
 
-  const localProjectRootTarget = projectRootTargets.find((target) => target.locality === "local") ?? null;
-  const rootManagementAvailable = localProjectRootTarget?.availability === "available-local";
+  const localProjectRootTarget = localProductActionTarget(projectRootTargets);
+  const rootManagementAvailable = localProjectRootTarget
+    ? isLocalProductActionPath(localProjectRootTarget)
+    : false;
   const rootManagementHint = !localProjectRootTarget
     ? copy.actionAvailabilityUnknown
-    : localProjectRootTarget.availability === "requires-local-host"
+    : productActionTargetRequiresLocalHost(localProjectRootTarget)
       ? copy.localHostRequired
-      : localProjectRootTarget.availability === "available-local"
+      : isLocalProductActionPath(localProjectRootTarget)
         ? null
         : copy.actionUnavailable;
 

@@ -103,19 +103,19 @@ assert.match(i18n, /connectionsNavigation:\s*"连接"/);
 assert.match(i18n, /publicAccess:\s*"公网接入"/);
 assert.match(i18n, /integrations:\s*"集成与授权"/);
 
-// Runtime lifecycle remains target-aware and never invents a Browser Machine executor.
+// Runtime lifecycle remains target-aware and never invents Machine Authority from its Surface.
 assert.match(runtime, /fetchProductActions\(\)/);
-assert.match(runtime, /action\.id === "runtime\.lifecycle"/);
-assert.match(runtime, /target\.locality === "remote"/);
-assert.match(runtime, /target\.availability === "available-targeted"/);
-assert.match(runtime, /target\.executionMode === "remote-device-rpc"/);
+assert.match(runtime, /productActionTargets\(projection, "runtime\.lifecycle"\)/);
+assert.match(runtime, /runtimeTargets\.filter\(isRemoteProductActionPath\)/);
+assert.match(runtime, /isProductActionTargetAvailable\(target\)/);
+assert.match(runtime, /productActionTargetRequiresLocalHost\(target\)/);
+assert.match(runtime, /isRemoteProductActionPath\(target\)/);
 assert.match(runtime, /fetchDeviceRuntimeStatus\(target\.deviceId\)/);
 assert.match(runtime, /executeDeviceRuntimeLifecycle\(target\.deviceId, action, crypto\.randomUUID\(\)\)/);
-assert.match(runtime, /target\.locality !== "remote"/);
-assert.match(runtime, /target\.executionMode !== "remote-device-rpc"/);
+assert.doesNotMatch(runtime, /"available-local"|"available-targeted"|"requires-local-host"/);
 assert.match(runtime, /health\.ok/);
-assert.match(runtimeCopy, /页面不会因为运行在浏览器里而伪造机器权限/);
-assert.match(runtimeCopy, /Browser never fabricates Machine Authority/);
+assert.match(runtimeCopy, /任何 Surface 都不会自行推断或伪造 Machine Authority/);
+assert.match(runtimeCopy, /no Surface infers or fabricates Machine Authority on its own/);
 assert.doesNotMatch(runtime, /fetch\([^)]*\/api\/(?:runtime|services)\/(?:start|stop|restart)/);
 assert.doesNotMatch(api, /\/api\/(?:runtime|services)\/(?:start|stop|restart)/);
 

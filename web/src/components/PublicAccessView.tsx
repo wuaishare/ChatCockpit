@@ -5,6 +5,12 @@ import { useEffect, useMemo, useState } from "react";
 import type { LocaleCode } from "../i18n";
 import { getPublicAccessCopy } from "../i18n/public-access";
 import type { OperationalStatusTone } from "../status-language";
+import {
+  availableProductActionTargets,
+  localProductActionTarget,
+  productActionTargetRequiresLocalHost,
+  productActionTargets
+} from "../product-action-availability";
 import type {
   ConnectivityProviderDetection,
   ConnectivityProviderMachineAction,
@@ -116,21 +122,19 @@ function providerActionExecutionPath(
   copy: ReturnType<typeof getPublicAccessCopy>
 ): string {
   const actionId = CONNECTIVITY_PROVIDER_PRODUCT_ACTION_IDS[action];
-  const projection = productActions?.actions.find((candidate) => candidate.id === actionId);
-  if (!projection) return copy.providerTargetAvailabilityUnknown;
+  const targets = productActionTargets(productActions, actionId);
+  if (targets.length === 0) return copy.providerTargetAvailabilityUnknown;
 
-  const availableTargets = projection.targets.filter(
-    (target) => target.availability === "available-local" || target.availability === "available-targeted"
-  );
+  const availableTargets = availableProductActionTargets(targets);
   if (availableTargets.length > 0) {
     return `${copy.providerAvailableTargets}: ${availableTargets.map((target) => target.displayName).join(", ")}`;
   }
 
-  const localTarget = projection.targets.find((target) => target.locality === "local");
-  const remoteNotImplemented = projection.targets.some(
+  const localTarget = localProductActionTarget(targets);
+  const remoteNotImplemented = targets.some(
     (target) => target.locality === "remote" && target.reason === "target-capability-not-implemented"
   );
-  if (localTarget?.availability === "requires-local-host") {
+  if (productActionTargetRequiresLocalHost(localTarget)) {
     return remoteNotImplemented
       ? `${copy.providerRequiresLocalHost} · ${copy.providerRemoteNotImplemented}`
       : copy.providerRequiresLocalHost;
@@ -147,11 +151,9 @@ function requiresLocalConnectivityHost(
     provider.actions.some((action) => {
       if (!action.available) return false;
       const actionId = CONNECTIVITY_PROVIDER_PRODUCT_ACTION_IDS[action.action];
-      return productActions?.actions
-        .find((candidate) => candidate.id === actionId)
-        ?.targets.some(
-          (target) => target.locality === "local" && target.availability === "requires-local-host"
-        ) === true;
+      return productActionTargetRequiresLocalHost(
+        localProductActionTarget(productActionTargets(productActions, actionId))
+      );
     })
   ) ?? false;
 }

@@ -36,6 +36,13 @@ import {
 } from "../../api";
 import type { LocaleCode } from "../../i18n";
 import {
+  hasLocalProductActionPath,
+  isLocalProductActionPath,
+  localProductActionTarget,
+  productActionTargetRequiresLocalHost,
+  productActionTargets
+} from "../../product-action-availability";
+import {
   getProjectsCopy,
   projectRootKindLabel,
   projectRootRoleLabel
@@ -147,14 +154,11 @@ export function ProjectCenterView({
         fetchProjects(),
         fetchProductActions().catch(() => null)
       ]);
-      const rootTargets =
-        actionResponse?.actions.find((action) => action.id === "project.root.manage")?.targets ?? [];
-      const discoveryTargets =
-        actionResponse?.actions.find((action) => action.id === "project.discovery")?.targets ?? [];
-      const nativeAssociationTargets =
-        actionResponse?.actions.find((action) => action.id === "project.native.associate")?.targets ?? [];
-      const localNativeAssociationAvailable = nativeAssociationTargets.some(
-        (target) => target.locality === "local" && target.availability === "available-local"
+      const rootTargets = productActionTargets(actionResponse, "project.root.manage");
+      const discoveryTargets = productActionTargets(actionResponse, "project.discovery");
+      const localNativeAssociationAvailable = hasLocalProductActionPath(
+        actionResponse,
+        "project.native.associate"
       );
 
       setProjects(initialResponse.projects);
@@ -199,22 +203,22 @@ export function ProjectCenterView({
     );
   }, [projects, query]);
 
-  const localProjectTarget = projectRootTargets.find((target) => target.locality === "local") ?? null;
+  const localProjectTarget = localProductActionTarget(projectRootTargets);
   const remoteProjectTargets = projectRootTargets.filter((target) => target.locality === "remote");
-  const localProjectAvailable = localProjectTarget?.availability === "available-local";
+  const localProjectAvailable = localProjectTarget
+    ? isLocalProductActionPath(localProjectTarget)
+    : false;
   const localProjectAvailabilityHint = !localProjectTarget
     ? copy.actionAvailabilityUnknown
-    : localProjectTarget.availability === "requires-local-host"
+    : productActionTargetRequiresLocalHost(localProjectTarget)
       ? copy.localHostRequired
-      : localProjectTarget.availability === "available-local"
+      : isLocalProductActionPath(localProjectTarget)
         ? null
         : copy.actionUnavailable;
   const remoteProjectAvailabilityHint = remoteProjectTargets.length === 0
     ? copy.noRemoteTargets
     : copy.remoteProjectUnavailable;
-  const localDiscoveryAvailable = projectDiscoveryTargets.some(
-    (target) => target.locality === "local" && target.availability === "available-local"
-  );
+  const localDiscoveryAvailable = projectDiscoveryTargets.some(isLocalProductActionPath);
 
   const openAddProject = useCallback((candidate?: ProjectRootDiscoveryCandidate) => {
     addForm.resetFields();
