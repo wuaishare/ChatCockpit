@@ -30,6 +30,12 @@ import {
   makeProjectRootPrimary,
   renameProject
 } from "../../api";
+import {
+  DESKTOP_HOST_CAPABILITIES,
+  desktopHostPickerAttributes,
+  hasDesktopHostCapability,
+  subscribeDesktopHostPickerResults
+} from "../../desktop-host-bridge";
 import type { LocaleCode } from "../../i18n";
 import {
   getProjectsCopy,
@@ -56,6 +62,7 @@ import type {
 } from "../../types";
 import { StateNotice } from "../StateNotice";
 import { UiText as Text } from "../UiText";
+import { ProjectActionTargetList } from "./ProjectActionTargetList";
 import { ProjectLiveExecutionPanel } from "./ProjectLiveExecutionPanel";
 import "./projects.css";
 
@@ -182,6 +189,19 @@ export function ProjectCockpitView({
       : isLocalProductActionPath(localProjectRootTarget)
         ? null
         : copy.actionUnavailable;
+  const projectRootPickerAvailable = hasDesktopHostCapability(
+    DESKTOP_HOST_CAPABILITIES.projectRootPick
+  );
+
+  useEffect(() => {
+    if (!projectRootPickerAvailable || !addRootOpen) return;
+    return subscribeDesktopHostPickerResults((result) => {
+      if (result.capability !== DESKTOP_HOST_CAPABILITIES.projectRootPick) return;
+      if (result.status === "selected") {
+        addRootForm.setFieldValue("path", result.path);
+      }
+    });
+  }, [addRootForm, addRootOpen, projectRootPickerAvailable]);
 
   const submitAddRoot = async (values: AddRootValues) => {
     if (!detail || !rootManagementAvailable) return;
@@ -415,7 +435,11 @@ export function ProjectCockpitView({
           </Button>
         </header>
 
-        {!rootManagementAvailable && rootManagementHint ? (
+        <ProjectActionTargetList
+          locale={locale}
+          targets={projectRootTargets}
+        />
+        {!rootManagementAvailable && projectRootTargets.length === 0 && rootManagementHint ? (
           <Alert type="info" showIcon message={copy.rootManagementUnavailable} description={rootManagementHint} />
         ) : null}
 
@@ -569,7 +593,18 @@ export function ProjectCockpitView({
             </Form.Item>
           ) : null}
           <Form.Item name="path" label={copy.localPath} rules={[{ required: true }]}>
-            <Input autoComplete="off" />
+            <Input
+              autoComplete="off"
+              addonAfter={projectRootPickerAvailable ? (
+                <Button
+                  type="text"
+                  size="small"
+                  {...desktopHostPickerAttributes()}
+                >
+                  {copy.chooseFolder}
+                </Button>
+              ) : null}
+            />
           </Form.Item>
         </Form>
       </Modal>

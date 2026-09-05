@@ -4,8 +4,11 @@ import path from "node:path";
 
 import {
   DESKTOP_HOST_ACTIONS,
+  DESKTOP_HOST_CAPABILITIES,
   desktopHostActionAttributes,
+  desktopHostPickerAttributes,
   hasDesktopHostCapability,
+  parseDesktopHostPickerResult,
   readDesktopHostCapabilityProjection
 } from "../web/src/desktop-host-bridge.ts";
 
@@ -37,13 +40,21 @@ const publicAccess = read("web/src/components/PublicAccessView.tsx");
 // shell, file, or arbitrary payload surface is permitted.
 assert.match(core, /case operatorSetup = "operator\.setup"/);
 assert.match(core, /case connectivity = "settings\.connectivity"/);
+assert.match(core, /case projectRootPick = "project\.root\.pick"/);
 assert.doesNotMatch(
   core,
   /case\s+(?:shell|command|file|runtimeRestart)|"runtime\.restart"|"shell\.|"file\./
 );
 assert.match(core, /Set\(body\.keys\) == Set\(\["schemaVersion", "action"\]\)/);
+assert.match(core, /Set\(body\.keys\) == Set\(\["schemaVersion", "capability"\]\)/);
+assert.match(core, /capability == \.projectRootPick/);
 assert.match(core, /CFGetTypeID\(schemaNumber\) != CFBooleanGetTypeID\(\)/);
 assert.doesNotMatch(core, /payload\s*:/);
+const actionEnum = core.slice(
+  core.indexOf("public enum DesktopHostAction"),
+  core.indexOf("public struct DesktopHostCapabilityProjection")
+);
+assert.doesNotMatch(actionEnum, /projectRootPick/);
 
 // Deep-link fallback and typed Host actions share one exact allowlist.
 assert.match(core, /public init\?\(deepLinkURL url: URL\)/);
@@ -62,8 +73,11 @@ assert.match(core, /guard source\.isMainFrame else/);
 assert.match(core, /source\.scheme == scheme/);
 assert.match(core, /source\.host == host/);
 assert.match(core, /source\.port == port/);
-assert.match(core, /supportedActions\.contains\(request\.action\)/);
+assert.match(core, /supportedCapabilities\.contains\(capability\)/);
 assert.match(core, /DesktopHostCapabilityProjection/);
+assert.match(core, /public func pickerDecision\(/);
+assert.match(core, /DesktopHostPickerRequest/);
+assert.match(core, /DesktopHostPickerResult/);
 
 // Renderer receives a read-only manifest in page world, but the message handler
 // itself lives in a separate WKContentWorld.
@@ -77,11 +91,19 @@ assert.match(
 );
 assert.match(
   sharedRenderer,
+  /addScriptMessageHandler\([\s\S]*contentWorld: SharedCockpitDesktopHostBridge\.contentWorld[\s\S]*name: SharedCockpitDesktopHostBridge\.pickerHandlerName/
+);
+assert.match(
+  sharedRenderer,
   /capabilityProjectionScript\(projection\)[\s\S]*forMainFrameOnly: true,[\s\S]*in: \.page/
 );
 assert.match(
   sharedRenderer,
   /trustedGestureScript\(projection\)[\s\S]*forMainFrameOnly: true,[\s\S]*in: SharedCockpitDesktopHostBridge\.contentWorld/
+);
+assert.match(
+  sharedRenderer,
+  /trustedPickerScript\(projection\)[\s\S]*forMainFrameOnly: true,[\s\S]*in: SharedCockpitDesktopHostBridge\.contentWorld/
 );
 assert.match(sharedRenderer, /Object\.defineProperty\(window, "\\?\(capabilityGlobal\)"/);
 assert.match(sharedRenderer, /writable: false/);
@@ -95,28 +117,47 @@ assert.match(sharedRenderer, /userActivation\.isActive/);
 assert.match(sharedRenderer, /event\.button !== 0/);
 assert.match(sharedRenderer, /data-chatcockpit-desktop-host-action/);
 assert.match(sharedRenderer, /allowedActions\.has\(action\)/);
+assert.match(sharedRenderer, /allowedCapabilities\.has\(capability\)/);
 assert.match(sharedRenderer, /event\.preventDefault\(\)/);
 assert.match(
   sharedRenderer,
   /postMessage\(\{[\s\S]*schemaVersion:[\s\S]*action[\s\S]*\}\)/
 );
+const pickerRequestBody = sharedRenderer.match(
+  /pickerHandlerName\)\.postMessage\(\{([\s\S]*?)\}\);/
+)?.[1] ?? "";
+assert.match(pickerRequestBody, /schemaVersion:/);
+assert.match(pickerRequestBody, /capability/);
+assert.doesNotMatch(pickerRequestBody, /path\s*:/);
 
 // WebKit-provided frame provenance is revalidated by Core policy before action.
 assert.match(sharedRenderer, /message\.frameInfo\.request\.url/);
 assert.match(sharedRenderer, /message\.frameInfo\.isMainFrame/);
 assert.match(sharedRenderer, /DesktopHostBridgeRequest\.parse\(messageBody: message\.body\)/);
+assert.match(sharedRenderer, /DesktopHostPickerRequest\.parse\(messageBody: message\.body\)/);
 assert.match(sharedRenderer, /hostBridgePolicy\.decision\(/);
+assert.match(sharedRenderer, /hostBridgePolicy\.pickerDecision\(/);
 assert.match(sharedRenderer, /userGestureAttested: true/);
 assert.match(sharedRenderer, /onDesktopHostAction\(action\)/);
+assert.match(sharedRenderer, /panel\.canChooseFiles = false/);
+assert.match(sharedRenderer, /panel\.canChooseDirectories = true/);
+assert.match(sharedRenderer, /panel\.allowsMultipleSelection = false/);
+assert.match(sharedRenderer, /panel\.canCreateDirectories = false/);
+assert.match(sharedRenderer, /let result: DesktopHostPickerResult/);
+assert.match(sharedRenderer, /result = \.selected\(path: url\.standardizedFileURL\.path\)/);
 
 // Page code can read the attested projection but has no direct native handler.
 assert.match(webBridge, /__chatcockpitDesktopHostCapabilities/);
 assert.match(webBridge, /DESKTOP_HOST_BRIDGE_SCHEMA_VERSION = 1/);
 assert.match(webBridge, /operatorSetup: "operator\.setup"/);
 assert.match(webBridge, /connectivity: "settings\.connectivity"/);
+assert.match(webBridge, /projectRootPick: "project\.root\.pick"/);
 assert.match(webBridge, /keys\.length !== 2/);
 assert.match(webBridge, /hasDesktopHostCapability/);
 assert.match(webBridge, /data-chatcockpit-desktop-host-action/);
+assert.match(webBridge, /data-chatcockpit-desktop-host-picker/);
+assert.match(webBridge, /parseDesktopHostPickerResult/);
+assert.match(webBridge, /subscribeDesktopHostPickerResults/);
 assert.doesNotMatch(webBridge, /window\.webkit|messageHandlers|postMessage/);
 
 // App explicitly separates embedded Host attestation from loopback deep-link
@@ -190,14 +231,18 @@ try {
 
   setWindowProjection({
     schemaVersion: 1,
-    capabilities: ["operator.setup", "settings.connectivity"]
+    capabilities: ["operator.setup", "settings.connectivity", "project.root.pick"]
   });
   assert.deepEqual(readDesktopHostCapabilityProjection(), {
     schemaVersion: 1,
-    capabilities: ["operator.setup", "settings.connectivity"]
+    capabilities: ["operator.setup", "settings.connectivity", "project.root.pick"]
   });
   assert.equal(hasDesktopHostCapability(DESKTOP_HOST_ACTIONS.operatorSetup), true);
   assert.equal(hasDesktopHostCapability(DESKTOP_HOST_ACTIONS.connectivity), true);
+  assert.equal(
+    hasDesktopHostCapability(DESKTOP_HOST_CAPABILITIES.projectRootPick),
+    true
+  );
 
   setWindowProjection({
     schemaVersion: 2,
@@ -230,6 +275,57 @@ try {
   assert.deepEqual(
     desktopHostActionAttributes(DESKTOP_HOST_ACTIONS.connectivity),
     { "data-chatcockpit-desktop-host-action": "settings.connectivity" }
+  );
+  assert.deepEqual(
+    desktopHostPickerAttributes(),
+    { "data-chatcockpit-desktop-host-picker": "project.root.pick" }
+  );
+
+  assert.deepEqual(
+    parseDesktopHostPickerResult({
+      capability: "project.root.pick",
+      status: "selected",
+      path: "/chosen/root"
+    }),
+    {
+      capability: "project.root.pick",
+      status: "selected",
+      path: "/chosen/root"
+    }
+  );
+  assert.deepEqual(
+    parseDesktopHostPickerResult({
+      capability: "project.root.pick",
+      status: "cancelled"
+    }),
+    {
+      capability: "project.root.pick",
+      status: "cancelled"
+    }
+  );
+  assert.equal(
+    parseDesktopHostPickerResult({
+      capability: "project.root.pick",
+      status: "selected",
+      path: ""
+    }),
+    null
+  );
+  assert.equal(
+    parseDesktopHostPickerResult({
+      capability: "project.root.pick",
+      status: "cancelled",
+      path: "/forged"
+    }),
+    null
+  );
+  assert.equal(
+    parseDesktopHostPickerResult({
+      capability: "operator.setup",
+      status: "selected",
+      path: "/forged"
+    }),
+    null
   );
 } finally {
   if (originalWindowDescriptor) {

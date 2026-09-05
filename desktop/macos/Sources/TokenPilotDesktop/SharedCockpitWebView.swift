@@ -13,7 +13,10 @@ private enum SharedCockpitState {
 
 private enum SharedCockpitDesktopHostBridge {
     static let handlerName = "chatcockpitDesktopHost"
+    static let pickerHandlerName = "chatcockpitDesktopHostPicker"
     static let actionAttribute = "data-chatcockpit-desktop-host-action"
+    static let pickerAttribute = "data-chatcockpit-desktop-host-picker"
+    static let pickerResultEvent = "chatcockpit:desktop-host-picker-result"
     static let capabilityGlobal = "__chatcockpitDesktopHostCapabilities"
     static let contentWorld = WKContentWorld.world(name: "ChatCockpitDesktopHostBridge")
 
@@ -45,7 +48,10 @@ private enum SharedCockpitDesktopHostBridge {
     static func trustedGestureScript(
         _ projection: DesktopHostCapabilityProjection
     ) -> String {
-        let actions = projection.capabilities.map(\.rawValue)
+        let capabilities = Set(projection.capabilities)
+        let actions = DesktopHostAction.allCases
+            .filter { capabilities.contains($0.capability) }
+            .map(\.rawValue)
         guard let data = try? JSONEncoder().encode(actions),
               let json = String(data: data, encoding: .utf8) else {
             return ""
@@ -79,6 +85,76 @@ private enum SharedCockpitDesktopHostBridge {
               schemaVersion: \(DesktopHostBridgePolicy.schemaVersion),
               action
             });
+          }, true);
+        })();
+        """
+    }
+
+    static func trustedPickerScript(
+        _ projection: DesktopHostCapabilityProjection
+    ) -> String {
+        let pickerCapabilities = projection.capabilities
+            .filter { $0 == .projectRootPick }
+            .map(\.rawValue)
+        guard let data = try? JSONEncoder().encode(pickerCapabilities),
+              let json = String(data: data, encoding: .utf8) else {
+            return ""
+        }
+
+        return """
+        (() => {
+          const allowedCapabilities = new Set(\(json));
+          document.addEventListener("click", async (event) => {
+            if (!(event instanceof MouseEvent) ||
+                !event.isTrusted ||
+                event.defaultPrevented ||
+                event.button !== 0) {
+              return;
+            }
+            if (navigator.userActivation && !navigator.userActivation.isActive) {
+              return;
+            }
+            const element = event.target instanceof Element
+              ? event.target.closest("[\(pickerAttribute)]")
+              : null;
+            if (!element) {
+              return;
+            }
+            const capability = element.getAttribute("\(pickerAttribute)");
+            if (!capability || !allowedCapabilities.has(capability)) {
+              return;
+            }
+
+            event.preventDefault();
+            let result;
+            try {
+              result = await window.webkit.messageHandlers.\(pickerHandlerName).postMessage({
+                schemaVersion: \(DesktopHostBridgePolicy.schemaVersion),
+                capability
+              });
+            } catch {
+              return;
+            }
+
+            if (!result || typeof result !== "object" ||
+                result.schemaVersion !== \(DesktopHostBridgePolicy.schemaVersion) ||
+                result.capability !== capability ||
+                (result.status !== "selected" && result.status !== "cancelled")) {
+              return;
+            }
+            if (result.status === "selected" &&
+                (typeof result.path !== "string" || result.path.length === 0)) {
+              return;
+            }
+            if (result.status === "cancelled" && "path" in result) {
+              return;
+            }
+
+            document.dispatchEvent(new CustomEvent("\(pickerResultEvent)", {
+              detail: result.status === "selected"
+                ? { capability, status: "selected", path: result.path }
+                : { capability, status: "cancelled" }
+            }));
           }, true);
         })();
         """
@@ -269,7 +345,7 @@ private struct SharedCockpitWebView: NSViewRepresentable {
     let onLoadFailed: () -> Void
     let onDesktopHostAction: (DesktopHostAction) -> Void
 
-    final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
+    final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler, WKScriptMessageHandlerWithReply {
         let policy: DesktopEmbeddedNavigationPolicy
         let hostBridgePolicy: DesktopHostBridgePolicy
         let baseURL: URL
@@ -445,6 +521,54 @@ private struct SharedCockpitWebView: NSViewRepresentable {
             }
         }
 
+        func userContentController(
+            _ userContentController: WKUserContentController,
+            didReceive message: WKScriptMessage,
+            replyHandler: @escaping @MainActor @Sendable (Any?, String?) -> Void
+        ) {
+            guard message.name == SharedCockpitDesktopHostBridge.pickerHandlerName,
+                  let request = DesktopHostPickerRequest.parse(messageBody: message.body),
+                  let source = hostBridgeSource(for: message) else {
+                Task { @MainActor in
+                    replyHandler(nil, "invalid-request")
+                }
+                return
+            }
+
+            let decision = hostBridgePolicy.pickerDecision(
+                for: request,
+                source: source,
+                userGestureAttested: true
+            )
+            Task { @MainActor in
+                switch decision {
+                case .allow(.projectRootPick):
+                    let panel = NSOpenPanel()
+                    panel.title = DesktopL10n.string("Choose Project Folder")
+                    panel.message = DesktopL10n.string(
+                        "Choose one folder for the Project workflow. ChatCockpit only returns the folder you explicitly select."
+                    )
+                    panel.prompt = DesktopL10n.string("Choose")
+                    panel.canChooseFiles = false
+                    panel.canChooseDirectories = true
+                    panel.allowsMultipleSelection = false
+                    panel.canCreateDirectories = false
+
+                    let result: DesktopHostPickerResult
+                    if panel.runModal() == .OK, let url = panel.url {
+                        result = .selected(path: url.standardizedFileURL.path)
+                    } else {
+                        result = .cancelled
+                    }
+                    replyHandler(result.messageBody, nil)
+                case .allow:
+                    replyHandler(nil, "unsupported-capability")
+                case .reject:
+                    replyHandler(nil, "rejected")
+                }
+            }
+        }
+
         func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
             onLoadingChanged(true)
         }
@@ -490,6 +614,11 @@ private struct SharedCockpitWebView: NSViewRepresentable {
             contentWorld: SharedCockpitDesktopHostBridge.contentWorld,
             name: SharedCockpitDesktopHostBridge.handlerName
         )
+        userContentController.addScriptMessageHandler(
+            context.coordinator,
+            contentWorld: SharedCockpitDesktopHostBridge.contentWorld,
+            name: SharedCockpitDesktopHostBridge.pickerHandlerName
+        )
         userContentController.addUserScript(
             WKUserScript(
                 source: SharedCockpitDesktopHostBridge.capabilityProjectionScript(projection),
@@ -501,6 +630,14 @@ private struct SharedCockpitWebView: NSViewRepresentable {
         userContentController.addUserScript(
             WKUserScript(
                 source: SharedCockpitDesktopHostBridge.trustedGestureScript(projection),
+                injectionTime: .atDocumentStart,
+                forMainFrameOnly: true,
+                in: SharedCockpitDesktopHostBridge.contentWorld
+            )
+        )
+        userContentController.addUserScript(
+            WKUserScript(
+                source: SharedCockpitDesktopHostBridge.trustedPickerScript(projection),
                 injectionTime: .atDocumentStart,
                 forMainFrameOnly: true,
                 in: SharedCockpitDesktopHostBridge.contentWorld

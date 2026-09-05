@@ -13,8 +13,10 @@ const sidebar = read("web/src/components/AppSidebar.tsx");
 const api = read("web/src/api.ts");
 const types = read("web/src/types.ts");
 const productActionAvailability = read("web/src/product-action-availability.ts");
+const desktopHostBridge = read("web/src/desktop-host-bridge.ts");
 const center = read("web/src/components/projects/ProjectCenterView.tsx");
 const cockpit = read("web/src/components/projects/ProjectCockpitView.tsx");
+const actionTargetList = read("web/src/components/projects/ProjectActionTargetList.tsx");
 const liveExecution = read("web/src/components/projects/ProjectLiveExecutionPanel.tsx");
 const runtimeView = read("web/src/components/RuntimeView.tsx");
 const runtimeLiveExecution = read("web/src/components/RuntimeLiveExecutionPanel.tsx");
@@ -70,7 +72,9 @@ assert.match(productActionAvailability, /export function productActionTargetRequ
 assert.match(center, /fetchProductActions/);
 assert.match(center, /productActionTargets\(actionResponse, "project\.root\.manage"\)/);
 assert.match(center, /productActionTargets\(actionResponse, "project\.discovery"\)/);
-assert.match(center, /localProjectAvailable/);
+assert.match(center, /selectedProjectTargetExecutable/);
+assert.match(center, /isLocalProductActionPath\(selectedProjectTarget\)/);
+assert.match(center, /setAddTargetId\(localProjectTarget\?\.deviceId \?\? null\)/);
 assert.match(center, /localDiscoveryAvailable/);
 assert.match(center, /hasLocalProductActionPath\([\s\S]*actionResponse,[\s\S]*"project\.native\.associate"/);
 assert.match(center, /reconcileNativeProjects/);
@@ -93,6 +97,14 @@ assert.match(cockpit, /isLocalProductActionPath\(localProjectRootTarget\)/);
 assert.match(cockpit, /productActionTargetRequiresLocalHost\(localProjectRootTarget\)/);
 assert.match(cockpit, /rootManagementAvailable/);
 assert.match(cockpit, /rootManagementHint/);
+assert.match(center, /<ProjectActionTargetList/);
+assert.match(cockpit, /<ProjectActionTargetList/);
+assert.match(actionTargetList, /target\.deviceId/);
+assert.match(actionTargetList, /target\.displayName/);
+assert.match(actionTargetList, /\{target\.platform\}\/\{target\.architecture\}/);
+assert.match(actionTargetList, /projectActionTargetAvailabilityLabel/);
+assert.match(actionTargetList, /projectActionTargetReasonLabel/);
+assert.match(actionTargetList, /isLocalProductActionPath\(target\)/);
 assert.doesNotMatch(center, /"available-local"|"available-targeted"|"requires-local-host"/);
 assert.doesNotMatch(cockpit, /"available-local"|"available-targeted"|"requires-local-host"/);
 assert.match(cockpit, /root\.pathVisibility === "machine-local-owner"/);
@@ -119,15 +131,41 @@ assert.match(center, /source\.inspectedContexts.*copy\.sourceSignals/);
 assert.match(copy, /sourceProjects:\s*"个项目"/);
 assert.match(copy, /sourceCandidates:\s*"个目录"/);
 
-// Manual Add Project is progressive disclosure: location first, then only name + folder.
+// Manual Add Project is progressive disclosure: target first, then only name + folder.
+// Remote targets are projected honestly but mutation remains fail-closed to a real local execution path.
 assert.match(center, /interface AddProjectFormValues \{\s*displayName: string;\s*path: string;\s*\}/s);
-assert.match(center, /project-add-location-card/);
-assert.match(center, /copy\.localProject/);
-assert.match(center, /copy\.remoteProjectUnavailable/);
-assert.match(center, /className="project-add-location-card is-disabled"\s*disabled/);
+assert.match(center, /selectedTargetId=\{addTargetId\}/);
+assert.match(center, /onSelectLocalTarget=\{\(target\) => setAddTargetId\(target\.deviceId\)\}/);
+assert.match(center, /disabled=\{!selectedProjectTargetExecutable\}/);
+assert.match(center, /if \(!configRevision \|\| !selectedProjectTargetExecutable\) return/);
+assert.doesNotMatch(center, /project-add-location-card/);
+assert.doesNotMatch(center, /className="project-add-location-card is-disabled"/);
 assert.match(center, /displayName: values\.displayName\.trim\(\)[\s\S]*path: values\.path\.trim\(\)[\s\S]*role: "primary-source"[\s\S]*access: "read-write"/);
 assert.doesNotMatch(center, /name="slug"/);
 assert.doesNotMatch(center, /name="kind"/);
+
+// Desktop Host folder picking is an optional, typed form-assist capability only.
+// It never grants Project mutation authority and ordinary Web has no native handler.
+assert.match(desktopHostBridge, /projectRootPick: "project\.root\.pick"/);
+assert.match(desktopHostBridge, /data-chatcockpit-desktop-host-picker/);
+assert.match(center, /hasDesktopHostCapability\([\s\S]*DESKTOP_HOST_CAPABILITIES\.projectRootPick/);
+assert.match(cockpit, /hasDesktopHostCapability\([\s\S]*DESKTOP_HOST_CAPABILITIES\.projectRootPick/);
+assert.match(center, /subscribeDesktopHostPickerResults/);
+assert.match(cockpit, /subscribeDesktopHostPickerResults/);
+assert.match(center, /addForm\.setFieldValue\("path", result\.path\)/);
+assert.match(cockpit, /addRootForm\.setFieldValue\("path", result\.path\)/);
+assert.match(center, /desktopHostPickerAttributes\(\)/);
+assert.match(cockpit, /desktopHostPickerAttributes\(\)/);
+assert.doesNotMatch(center, /window\.webkit|messageHandlers|postMessage/);
+assert.doesNotMatch(cockpit, /window\.webkit|messageHandlers|postMessage/);
+
+// Availability reasons remain semantically distinct; not-attested is not rewritten as
+// offline or update-required, and not-implemented remains explicit.
+assert.match(copy, /case "device-agent-update-required":[\s\S]*copy\.reasonAgentUpdate/);
+assert.match(copy, /case "target-capability-not-attested":[\s\S]*copy\.reasonNotAttested/);
+assert.match(copy, /case "target-capability-not-implemented":[\s\S]*copy\.reasonNotImplemented/);
+assert.match(copy, /case "device-offline":[\s\S]*copy\.reasonOffline/);
+assert.match(copy, /case "approval-required":[\s\S]*copy\.reasonApproval/);
 
 // Dark appearance must use Ant Design's dark derivative-token algorithm.
 assert.match(theme, /antdTheme\.darkAlgorithm/);
